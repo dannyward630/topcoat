@@ -25,7 +25,7 @@ pub async fn connect() -> toasty::Result<Db> {
 /// Applies the migrations the database has not seen yet.
 ///
 /// After changing a model, generate a new migration with
-/// `cargo run -p backroom -- toasty migration generate`. The next start applies it.
+/// `cargo run -p admin -- toasty migration generate`. The next start applies it.
 pub async fn migrate(db: &Db) -> toasty::Result<()> {
     MIGRATIONS.apply(db).await?;
     Ok(())

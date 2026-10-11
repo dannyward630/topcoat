@@ -10,7 +10,7 @@ mod seed;
 async fn main() {
     let db = db::connect().await.unwrap();
 
-    // `cargo run -p backroom -- toasty migration <command>` manages the database schema.
+    // `cargo run -p admin -- toasty migration <command>` manages the database schema.
     let mut args = std::env::args().skip(1).peekable();
     if args.peek().is_some_and(|arg| arg == "toasty") {
         if let Err(error) = db::cli(db).parse_from(args).await {

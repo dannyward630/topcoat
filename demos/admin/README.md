@@ -1,6 +1,6 @@
-# Backroom
+# Admin Panel
 
-The back office of an online store, where staff sign in to manage the store. It shows how a larger Topcoat application fits together: Toasty models and migrations, password sign-in with sessions, layouts that guard pages, and a Topcoat UI shell driven by the browser runtime.
+Backroom is the back office of an online store, where staff sign in to manage the store. It shows how a larger Topcoat application fits together: Toasty models and migrations, password sign-in with sessions, layouts that guard pages, and a Topcoat UI shell driven by the browser runtime.
 
 Clone the Topcoat repository:
 
@@ -12,7 +12,7 @@ cd topcoat
 Then run it with:
 
 ```sh
-cargo topcoat dev -p backroom
+cargo topcoat dev -p admin
 ```
 
 The first start creates `data.db` next to this file and fills it with demo data. The sign-in page lists the demo accounts. Delete `data.db` to start over.
@@ -33,11 +33,11 @@ The first start creates `data.db` next to this file and fills it with demo data.
 After editing a model, generate a migration from the repository root:
 
 ```sh
-cargo run -p backroom -- toasty migration generate --name <name>
+cargo run -p admin -- toasty migration generate --name <name>
 ```
 
 The migration is compiled into the binary and applied on the next start.
 
 ## Updating components
 
-The components in `src/components` must match the Topcoat UI registry, which `cargo test -p backroom` checks. To pull registry changes, run `topcoat ui add <name> --overwrite` in this directory.
+The components in `src/components` must match the Topcoat UI registry, which `cargo test -p admin` checks. To pull registry changes, run `topcoat ui add <name> --overwrite` in this directory.

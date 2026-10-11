@@ -1,5 +1,5 @@
 [package]
-name = "backroom"
+name = "admin"
 version.workspace = true
 edition.workspace = true
 publish = false
