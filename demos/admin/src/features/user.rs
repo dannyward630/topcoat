@@ -78,6 +78,11 @@ impl Role {
             Self::Viewer => "Viewer",
         }
     }
+
+    /// Whether the role may change store data, such as an order's status.
+    pub fn can_edit(self) -> bool {
+        matches!(self, Self::Admin | Self::Staff)
+    }
 }
 
 /// Hashes a password with a random salt.

@@ -2,5 +2,8 @@
 //! data and business rules, for the pages in `app` to use.
 
 pub mod auth;
+pub mod catalog;
+pub mod customer;
+pub mod order;
 pub mod theme;
 pub mod user;

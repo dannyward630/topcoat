@@ -3,12 +3,15 @@
 //! The leading underscore makes this module a group: its layout wraps every page
 //! below it without adding a segment to their URLs.
 
+mod orders;
+
+use jiff::Timestamp;
 use topcoat::{
     Result,
     context::Cx,
     icon::{IconData, icon, iconify::iconify_icon},
     router::{HrefTarget, Slot, href, layout, page, request::uri},
-    runtime::{Event, Signal, link, signal},
+    runtime::{Event, Signal, link, link_attrs, prefetch_mode, signal},
     view::{View, attributes, component, element_id, view},
 };
 
@@ -17,7 +20,8 @@ use crate::{
     components::{
         avatar::{AvatarSize, avatar, avatar_fallback},
         breadcrumb::{
-            breadcrumb, breadcrumb_item, breadcrumb_list, breadcrumb_page, breadcrumb_separator,
+            breadcrumb, breadcrumb_item, breadcrumb_link, breadcrumb_list, breadcrumb_page,
+            breadcrumb_separator,
         },
         button::{ButtonSize, ButtonVariant, button},
         dropdown_menu::{
@@ -47,11 +51,34 @@ struct NavItem {
 }
 
 /// The sidebar's navigation, in display order.
-static NAV: [NavItem; 1] = [NavItem {
-    label: "Dashboard",
-    icon: iconify_icon!("lucide:layout-dashboard"),
-    target: &page,
-}];
+static NAV: [NavItem; 2] = [
+    NavItem {
+        label: "Dashboard",
+        icon: iconify_icon!("lucide:layout-dashboard"),
+        target: &page,
+    },
+    NavItem {
+        label: "Orders",
+        icon: iconify_icon!("lucide:shopping-cart"),
+        target: &orders::page,
+    },
+];
+
+/// Whether the current page is `path` or a page below it, such as one order in the
+/// list of orders.
+fn in_section(cx: &Cx, path: &str) -> bool {
+    let current = uri(cx).path();
+    current == path
+        || (path != "/"
+            && current
+                .strip_prefix(path)
+                .is_some_and(|rest| rest.starts_with('/')))
+}
+
+/// Formats a timestamp as a date, like `Oct 12, 2026`, in UTC.
+fn display_date(timestamp: Timestamp) -> String {
+    timestamp.strftime("%b %-d, %Y").to_string()
+}
 
 #[layout]
 async fn shell(cx: &Cx, slot: Slot<'_>) -> Result<impl View> {
@@ -157,7 +184,7 @@ async fn app_sidebar(
                         sidebar_menu(
                             for item in &NAV {
                                 let href = href!(item.target);
-                                let current = href.is_current(cx);
+                                let current = in_section(cx, &href.resolve(cx));
                                 sidebar_menu_item(
                                     // `link` opens the page without a full reload. The
                                     // sidebar's class helper gives it the menu's look.
@@ -244,17 +271,32 @@ async fn user_menu(cx: &Cx, user: &User) -> Result<impl View> {
 }
 
 /// The trail from the back office to the current page.
+///
+/// It names the section the page is in, and links to the section from the pages
+/// below it.
 #[component]
 async fn page_breadcrumb(cx: &Cx) -> Result<impl View> {
-    let current = NAV.iter().find(|item| href!(item.target).is_current(cx));
+    let section = NAV
+        .iter()
+        .map(|item| (item, href!(item.target)))
+        .find(|(_, href)| in_section(cx, &href.resolve(cx)));
 
     Ok(view! {
         breadcrumb(
             breadcrumb_list(
                 breadcrumb_item("Backroom")
-                if let Some(item) = current {
+                if let Some((item, href)) = section {
                     breadcrumb_separator()
-                    breadcrumb_item(breadcrumb_page((item.label)))
+                    breadcrumb_item(
+                        if href.is_current(cx) {
+                            breadcrumb_page((item.label))
+                        } else {
+                            breadcrumb_link(
+                                attrs: attributes! { (link_attrs(cx, href, prefetch_mode(cx))) },
+                                (item.label)
+                            )
+                        }
+                    )
                 }
             )
         )

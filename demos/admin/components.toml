@@ -56,6 +56,10 @@ file = "src/components/input.rs"
 hash = "sha256:a8da6e188c553a4d3f859a747d73fa7115dc53470131e331511c597026925992"
 file = "src/components/label.rs"
 
+[registries.topcoat.components.pagination]
+hash = "sha256:e3a01c26e38ad5b5c93c32f56cbd148f1e102d8691a107a837d1b80a15670cfb"
+file = "src/components/pagination.rs"
+
 [registries.topcoat.components.separator]
 hash = "sha256:7ba5a7628128e1811e960884bd56da34f754c1d516230b4442dfbc1cb97e73e9"
 file = "src/components/separator.rs"
@@ -71,3 +75,11 @@ file = "src/components/sidebar.rs"
 [registries.topcoat.components.skeleton]
 hash = "sha256:3b6d99ca9aef02697ce1142903bd49062ef9f2bd4ecbb1e6b82be0ea6554d1a5"
 file = "src/components/skeleton.rs"
+
+[registries.topcoat.components.table]
+hash = "sha256:8579ede1083af6d1c1d185110a885146e23fd8612d07d3d6d03b24b01ea523b6"
+file = "src/components/table.rs"
+
+[registries.topcoat.components.tabs]
+hash = "sha256:a9553fe4b7845c6023cfbfd098e084740b4517bcf671ee371095286c36f0fbfc"
+file = "src/components/tabs.rs"
