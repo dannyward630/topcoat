@@ -2,12 +2,15 @@
 //! Failure messages explain how to refresh files after registry changes.
 //!
 //! The demo installs only the components it uses. Uninstalled registry
-//! components are allowed, but every installed component must come from the
-//! registry.
+//! components are allowed, and every other file in the components directory must
+//! either come from the registry or be one of the demo's own components.
 
 use std::path::{Path, PathBuf};
 
 use topcoat_ui::Registry;
+
+/// The components the demo writes itself, which the registry does not offer.
+const OWN_COMPONENTS: [&str; 1] = ["chart.rs"];
 
 /// The demo package's root directory.
 fn package_root() -> &'static Path {
@@ -90,11 +93,10 @@ fn vendored_components_come_from_the_registry() {
             .file_name();
         let file = file.to_str().expect("component file names are UTF-8");
         assert!(
-            known.iter().any(|known| known == file),
+            known.iter().any(|known| known == file) || OWN_COMPONENTS.contains(&file),
             "{} is not a component of the built-in registry; \
-             remove it with `topcoat ui remove` in demos/admin, or move it out of {}",
+             remove it with `topcoat ui remove` in demos/admin, or add it to `OWN_COMPONENTS`",
             dir.join(file).display(),
-            dir.display(),
         );
     }
 }
