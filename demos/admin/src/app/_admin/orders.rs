@@ -248,8 +248,10 @@ async fn order_list(
                     <span class="font-medium text-foreground">(count)</span>
                     " orders"
                 </p>
+                // Pulled right by the "Next" link's padding, so its chevron lines up
+                // with the totals above.
                 pagination(
-                    attrs: attributes! { class="sm:justify-end" },
+                    attrs: attributes! { class="sm:-mr-3 sm:justify-end" },
                     pagination_content(
                         pagination_item(
                             pagination_previous(
