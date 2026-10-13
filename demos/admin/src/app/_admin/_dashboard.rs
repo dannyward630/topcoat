@@ -11,13 +11,14 @@ use topcoat::{
     context::Cx,
     router::page,
     runtime::{connected, shard},
-    view::{
-        EmitToken, StaticClass, View, attributes, class, component, element_id, emit, live, view,
-    },
+    view::{EmitToken, StaticClass, View, attributes, class, component, emit, live, view},
 };
 
 use crate::{
-    components::card::card,
+    components::{
+        card::card,
+        chart::{bar_chart, line_chart},
+    },
     features::{
         auth::require_user,
         stats::{SalesStats, VisitorStats},
@@ -234,92 +235,6 @@ async fn figure_details(figure: &Figure, accent: StaticClass) -> Result<impl Vie
         </div>
     })
 }
-
-/// A line chart of `values`, oldest first, with the area under the line shaded.
-///
-/// The chart fills its container and draws in the current text color.
-#[component]
-async fn line_chart(cx: &Cx, values: &[i64]) -> Result<impl View> {
-    let fill_id = element_id(cx);
-    let min = values.iter().copied().min().unwrap_or(0);
-    let max = values.iter().copied().max().unwrap_or(0);
-    let width = values.len().saturating_sub(1) * CHART_STEP;
-    let points = values
-        .iter()
-        .enumerate()
-        .map(|(index, &value)| {
-            // The line keeps clear of the top edge, so its stroke is not cut off.
-            let height = if max == min {
-                40
-            } else {
-                10 + (value - min) * 80 / (max - min)
-            };
-            format!("{},{}", index * CHART_STEP, 100 - height)
-        })
-        .collect::<Vec<_>>()
-        .join(" L");
-
-    Ok(view! {
-        <svg
-            viewBox=(format!("0 0 {width} 100"))
-            preserveAspectRatio="none"
-            class="size-full"
-            aria-hidden="true"
-        >
-            <defs>
-                <linearGradient id=(&fill_id) x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="currentColor" stop-opacity="0.3"></stop>
-                    <stop offset="1" stop-color="currentColor" stop-opacity="0"></stop>
-                </linearGradient>
-            </defs>
-            <path
-                d=(format!("M0,100 L{points} L{width},100 Z"))
-                fill=(format!("url(#{fill_id})"))
-            ></path>
-            <path
-                d=(format!("M{points}"))
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linejoin="round"
-                vector-effect="non-scaling-stroke"
-            ></path>
-        </svg>
-    })
-}
-
-/// A bar chart of `values`, oldest first. The newest bar stands out from the others.
-///
-/// The chart fills its container and draws in the current text color.
-#[component]
-async fn bar_chart(values: &[i64]) -> Result<impl View> {
-    let max = values.iter().copied().max().unwrap_or(0).max(1);
-    let width = values.len() * CHART_STEP;
-
-    Ok(view! {
-        <svg
-            viewBox=(format!("0 0 {width} 100"))
-            preserveAspectRatio="none"
-            class="size-full"
-            aria-hidden="true"
-        >
-            for (index, &value) in values.iter().enumerate() {
-                let height = value * 90 / max;
-                <rect
-                    x=((index * CHART_STEP + 1).to_string())
-                    y=((100 - height).to_string())
-                    width=((CHART_STEP - 2).to_string())
-                    height=(height.to_string())
-                    fill="currentColor"
-                    class=(if index + 1 == values.len() { "" } else { "opacity-40" })
-                ></rect>
-            }
-        </svg>
-    })
-}
-
-/// The horizontal distance between two points of a chart, in the chart's own units.
-const CHART_STEP: usize = 10;
 
 /// How much `now` differs from `before`, in tenths of a percent of `before`.
 fn change(now: i64, before: i64) -> Option<i64> {
