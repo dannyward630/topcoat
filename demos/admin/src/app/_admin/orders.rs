@@ -42,13 +42,9 @@ const PER_PAGE: usize = 20;
 #[query_params(error = redirect("?"))]
 #[derive(Serialize)]
 pub struct OrdersQuery {
-    #[serde(skip_serializing_if = "Option::is_none")]
     q: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     status: Option<OrderStatus>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     sort: Option<OrderSort>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     page: Option<usize>,
 }
 
@@ -87,9 +83,11 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
             <p class="text-muted-foreground">"Every order placed in the store."</p>
         </header>
 
+        // The first and last columns get more room from the panel's edges.
         <section
             class="overflow-hidden rounded-xl border border-border bg-card \
-                text-card-foreground shadow-xs"
+                text-card-foreground shadow-xs [&_tr>*:first-child]:pl-5 \
+                [&_tr>*:last-child]:pr-5"
         >
             <div
                 class="flex flex-col gap-2 border-b border-border p-3 sm:flex-row \
@@ -249,7 +247,7 @@ async fn order_list(
             )
 
             <div
-                class="flex flex-col items-center gap-3 border-t border-border p-3 sm:flex-row"
+                class="flex flex-col items-center gap-3 border-t border-border px-5 py-3 sm:flex-row"
             >
                 <p class="shrink-0 text-sm text-muted-foreground tabular-nums">
                     "Showing "
@@ -373,14 +371,14 @@ async fn order_rows(
                         .sum::<u32>();
                     table_row(
                         table_cell(
-                            attrs: attributes! { class="py-2 font-medium tabular-nums" },
+                            attrs: attributes! { class="font-medium tabular-nums" },
                             "#"
                             (order.id)
                         )
                         table_cell(
                             // `max-w-0` lets long names and addresses shorten with an
                             // ellipsis instead of widening the table.
-                            attrs: attributes! { class="max-w-0 py-2" },
+                            attrs: attributes! { class="max-w-0" },
                             <div class="flex items-center gap-3">
                                 avatar(
                                     size: AvatarSize::Sm,
@@ -400,12 +398,12 @@ async fn order_rows(
                             </div>
                         )
                         table_cell(
-                            attrs: attributes! { class=(class!("py-2", STATUS_COLUMN)) },
+                            attrs: attributes! { class=(STATUS_COLUMN) },
                             status_badge(status: order.status)
                         )
                         table_cell(
                             attrs: attributes! {
-                                class=(class!("py-2 text-muted-foreground tabular-nums", ITEMS_COLUMN))
+                                class=(class!("text-muted-foreground tabular-nums", ITEMS_COLUMN))
                             },
                             (units)
                             if units == 1 {
@@ -415,9 +413,7 @@ async fn order_rows(
                             }
                         )
                         table_cell(
-                            attrs: attributes! {
-                                class=(class!("py-2 text-muted-foreground", PLACED_COLUMN))
-                            },
+                            attrs: attributes! { class=(class!("text-muted-foreground", PLACED_COLUMN)) },
                             <time
                                 datetime=(order.placed_at.to_string())
                                 title=(order
@@ -429,7 +425,7 @@ async fn order_rows(
                             </time>
                         )
                         table_cell(
-                            attrs: attributes! { class="py-2 text-right font-medium tabular-nums" },
+                            attrs: attributes! { class="text-right font-medium tabular-nums" },
                             (order.total)
                         )
                     )
@@ -449,12 +445,9 @@ async fn order_rows_skeleton(rows: usize) -> Result<impl View> {
             table_body(
                 for _ in 0..rows {
                     table_row(
+                        table_cell(skeleton(attrs: attributes! { class="h-4 w-10" }))
                         table_cell(
-                            attrs: attributes! { class="py-2" },
-                            skeleton(attrs: attributes! { class="h-4 w-10" })
-                        )
-                        table_cell(
-                            attrs: attributes! { class="max-w-0 py-2" },
+                            attrs: attributes! { class="max-w-0" },
                             <div class="flex items-center gap-3">
                                 avatar(
                                     size: AvatarSize::Sm,
@@ -478,19 +471,18 @@ async fn order_rows_skeleton(rows: usize) -> Result<impl View> {
                             </div>
                         )
                         table_cell(
-                            attrs: attributes! { class=(class!("py-2", STATUS_COLUMN)) },
+                            attrs: attributes! { class=(STATUS_COLUMN) },
                             skeleton(attrs: attributes! { class="h-5.5 w-20" })
                         )
                         table_cell(
-                            attrs: attributes! { class=(class!("py-2", ITEMS_COLUMN)) },
+                            attrs: attributes! { class=(ITEMS_COLUMN) },
                             skeleton(attrs: attributes! { class="h-4 w-14" })
                         )
                         table_cell(
-                            attrs: attributes! { class=(class!("py-2", PLACED_COLUMN)) },
+                            attrs: attributes! { class=(PLACED_COLUMN) },
                             skeleton(attrs: attributes! { class="h-4 w-20" })
                         )
                         table_cell(
-                            attrs: attributes! { class="py-2" },
                             skeleton(attrs: attributes! { class="ml-auto h-4 w-16" })
                         )
                     )
