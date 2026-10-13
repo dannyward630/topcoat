@@ -1,5 +1,7 @@
 //! The database connection and its migrations.
 
+use std::time::Duration;
+
 use toasty::{Db, migration::MigrationSet};
 use toasty_cli::{Config, MigrationConfig, ToastyCli};
 use topcoat::context::{Cx, app_context};
@@ -10,6 +12,9 @@ const DATABASE_URL: &str = concat!("sqlite:", env!("CARGO_MANIFEST_DIR"), "/data
 
 /// The directory holding the migration history, snapshots, and SQL files.
 const MIGRATIONS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/toasty");
+
+/// How long [`latency`] waits.
+const LATENCY: Duration = Duration::from_millis(600);
 
 /// The migrations in `toasty/`, compiled into the binary.
 const MIGRATIONS: MigrationSet = toasty::embed_migrations!();
@@ -41,4 +46,12 @@ pub fn cli(db: Db) -> ToastyCli {
 /// because it refers to a shared connection pool.
 pub fn db(cx: &Cx) -> Db {
     app_context::<Db>(cx).clone()
+}
+
+/// Waits a moment, like a busy database would before it answers.
+///
+/// The demo database answers instantly, so the pages' loading states would flash by
+/// too fast to see. Call it before a query whose page shows a skeleton while it loads.
+pub async fn latency() {
+    tokio::time::sleep(LATENCY).await;
 }

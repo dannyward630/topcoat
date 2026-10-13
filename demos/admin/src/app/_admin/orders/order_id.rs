@@ -14,7 +14,7 @@ use topcoat::{
         route,
     },
     runtime::{Event, signal},
-    view::{View, attributes, component, element_id, view},
+    view::{View, attributes, component, element_id, suspense, view},
 };
 
 use super::status_badge;
@@ -27,11 +27,14 @@ use crate::{
         dialog::{
             dialog, dialog_content, dialog_description, dialog_footer, dialog_header, dialog_title,
         },
+        skeleton::skeleton,
         table::{table, table_body, table_cell, table_footer, table_head, table_header, table_row},
     },
     features::{
         auth::require_user,
-        order::{Order, OrderStatus},
+        catalog::Money,
+        customer::Customer,
+        order::{Order, OrderItem, OrderStatus},
     },
 };
 
@@ -49,7 +52,8 @@ async fn crumb(cx: &Cx, body: Body, next: Next<'_>) -> Result<Response> {
 pub async fn page(cx: &Cx) -> Result<impl View> {
     let user = require_user(cx).await?;
     let id = *path_param::<OrderId>(cx)?;
-    let order = Order::find_with_items(cx, id).await?.ok_or_not_found()?;
+    // The order itself loads before the page, so a missing order gets a 404 status.
+    let order = Order::find(cx, id).await?.ok_or_not_found()?;
     // Viewers can see the order but not change it.
     let next = if user.role.can_edit() {
         order.status.next()
@@ -58,10 +62,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     };
 
     Ok(view! {
-        let customer = order.customer.get();
-        let items = order.items.get();
-        let units = items.iter().map(|item| item.quantity).sum::<u32>();
-
         <header class="flex flex-col gap-4 sm:flex-row sm:items-start">
             <div class="flex flex-col gap-1">
                 <div class="flex items-center gap-3">
@@ -83,109 +83,224 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
             }
         </header>
 
+        // The items and the customer load after the rest of the page, each with a
+        // skeleton in its place until it arrives.
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
             card(
                 attrs: attributes! { class="lg:col-span-2" },
-                card_header(
-                    card_title("Items")
-                    card_description(
-                        (units)
-                        if units == 1 {
-                            " unit"
-                        } else {
-                            " units"
-                        }
-                    )
-                )
-                table(
-                    table_header(
-                        table_row(
-                            table_head(attrs: attributes! { class="w-full" }, "Product")
-                            table_head(
-                                attrs: attributes! { class="text-right" },
-                                "Quantity"
-                            )
-                            table_head(
-                                attrs: attributes! { class="text-right" },
-                                "Price"
-                            )
-                            table_head(
-                                attrs: attributes! { class="text-right" },
-                                "Subtotal"
-                            )
-                        )
-                    )
-                    table_body(
-                        for item in items {
-                            let product = item.product.get();
-                            table_row(
-                                table_cell(
-                                    <div class="flex flex-col">
-                                        <span class="font-medium">(&product.name)</span>
-                                        <span class="text-xs text-muted-foreground">
-                                            (&product.sku)
-                                        </span>
-                                    </div>
-                                )
-                                table_cell(
-                                    attrs: attributes! { class="text-right tabular-nums" },
-                                    (item.quantity)
-                                )
-                                table_cell(
-                                    attrs: attributes! { class="text-right text-muted-foreground tabular-nums" },
-                                    (item.unit_price)
-                                )
-                                table_cell(
-                                    attrs: attributes! { class="text-right font-medium tabular-nums" },
-                                    (item.subtotal())
-                                )
-                            )
-                        }
-                    )
-                    table_footer(
-                        table_row(
-                            table_cell(attrs: attributes! { colspan="3" }, "Total")
-                            table_cell(
-                                attrs: attributes! { class="text-right tabular-nums" },
-                                (order.total)
-                            )
-                        )
-                    )
+                suspense(
+                    fallback: view! { order_items_skeleton() },
+                    order_items(id: order.id, total: order.total)
                 )
             )
 
             card(
                 card_header(card_title("Customer"))
-                card_content(
-                    <div class="flex items-center gap-3">
-                        avatar(avatar_fallback((customer.initials())))
-                        <div class="flex min-w-0 flex-col">
-                            <span class="truncate font-medium">(&customer.name)</span>
-                            <a
-                                href=(format!("mailto:{}", customer.email))
-                                class="truncate text-sm text-muted-foreground hover:underline"
-                            >
-                                (&customer.email)
-                            </a>
-                        </div>
-                    </div>
-                    <dl class="mt-6 grid grid-cols-2 gap-4 text-sm">
-                        <div class="flex flex-col gap-1">
-                            <dt class="text-muted-foreground">"City"</dt>
-                            <dd>(&customer.city)</dd>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                            <dt class="text-muted-foreground">"Customer since"</dt>
-                            <dd>
-                                <time datetime=(customer.joined_at.to_string())>
-                                    (customer.joined_at.strftime("%b %Y").to_string())
-                                </time>
-                            </dd>
-                        </div>
-                    </dl>
+                suspense(
+                    fallback: view! { customer_details_skeleton() },
+                    customer_details(id: order.customer_id)
                 )
             )
         </div>
+    })
+}
+
+/// The items of the order with `id`, which add up to `total`.
+#[component]
+async fn order_items(cx: &Cx, id: u64, total: Money) -> Result<impl View> {
+    let items = OrderItem::of_order(cx, id).await?;
+    let units = items.iter().map(|item| item.quantity).sum::<u32>();
+
+    Ok(view! {
+        card_header(
+            card_title("Items")
+            card_description(
+                (units)
+                if units == 1 {
+                    " unit"
+                } else {
+                    " units"
+                }
+            )
+        )
+        table(
+            order_item_columns()
+            table_body(
+                for item in &items {
+                    let product = item.product.get();
+                    table_row(
+                        table_cell(
+                            <div class="flex flex-col">
+                                <span class="font-medium">(&product.name)</span>
+                                <span class="text-xs text-muted-foreground">
+                                    (&product.sku)
+                                </span>
+                            </div>
+                        )
+                        table_cell(
+                            attrs: attributes! { class="text-right tabular-nums" },
+                            (item.quantity)
+                        )
+                        table_cell(
+                            attrs: attributes! { class="text-right text-muted-foreground tabular-nums" },
+                            (item.unit_price)
+                        )
+                        table_cell(
+                            attrs: attributes! { class="text-right font-medium tabular-nums" },
+                            (item.subtotal())
+                        )
+                    )
+                }
+            )
+            table_footer(
+                table_row(
+                    table_cell(attrs: attributes! { colspan="3" }, "Total")
+                    table_cell(
+                        attrs: attributes! { class="text-right tabular-nums" },
+                        (total)
+                    )
+                )
+            )
+        )
+    })
+}
+
+/// A placeholder for [`order_items`] with rows of the same height.
+#[component]
+async fn order_items_skeleton() -> Result<impl View> {
+    Ok(view! {
+        card_header(
+            card_title("Items")
+            <div class="flex h-5 items-center">
+                skeleton(attrs: attributes! { class="h-3.5 w-14" })
+            </div>
+        )
+        table(
+            attrs: attributes! { aria-busy="true" },
+            order_item_columns()
+            table_body(
+                for _ in 0..3 {
+                    table_row(
+                        table_cell(
+                            <div class="flex flex-col">
+                                <div class="flex h-5 items-center">
+                                    skeleton(
+                                        attrs: attributes! { class="h-3.5 w-40 max-w-full" }
+                                    )
+                                </div>
+                                <div class="flex h-4 items-center">
+                                    skeleton(attrs: attributes! { class="h-3 w-20" })
+                                </div>
+                            </div>
+                        )
+                        table_cell(
+                            skeleton(attrs: attributes! { class="ml-auto h-4 w-6" })
+                        )
+                        table_cell(
+                            skeleton(attrs: attributes! { class="ml-auto h-4 w-14" })
+                        )
+                        table_cell(
+                            skeleton(attrs: attributes! { class="ml-auto h-4 w-16" })
+                        )
+                    )
+                }
+            )
+            table_footer(
+                table_row(
+                    table_cell(attrs: attributes! { colspan="3" }, "Total")
+                    table_cell(
+                        skeleton(attrs: attributes! { class="ml-auto h-4 w-16" })
+                    )
+                )
+            )
+        )
+    })
+}
+
+/// The header row naming the columns of the item table.
+#[component]
+async fn order_item_columns() -> Result<impl View> {
+    Ok(view! {
+        table_header(
+            table_row(
+                table_head(attrs: attributes! { class="w-full" }, "Product")
+                table_head(attrs: attributes! { class="text-right" }, "Quantity")
+                table_head(attrs: attributes! { class="text-right" }, "Price")
+                table_head(attrs: attributes! { class="text-right" }, "Subtotal")
+            )
+        )
+    })
+}
+
+/// The contact details of the customer with `id`.
+#[component]
+async fn customer_details(cx: &Cx, id: u64) -> Result<impl View> {
+    let customer = Customer::get(cx, id).await?;
+
+    Ok(view! {
+        card_content(
+            <div class="flex items-center gap-3">
+                avatar(avatar_fallback((customer.initials())))
+                <div class="flex min-w-0 flex-col">
+                    <span class="truncate font-medium">(&customer.name)</span>
+                    <a
+                        href=(format!("mailto:{}", customer.email))
+                        class="truncate text-sm text-muted-foreground hover:underline"
+                    >
+                        (&customer.email)
+                    </a>
+                </div>
+            </div>
+            <dl class="mt-6 grid grid-cols-2 gap-4 text-sm">
+                <div class="flex flex-col gap-1">
+                    <dt class="text-muted-foreground">"City"</dt>
+                    <dd>(&customer.city)</dd>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <dt class="text-muted-foreground">"Customer since"</dt>
+                    <dd>
+                        <time datetime=(customer.joined_at.to_string())>
+                            (customer.joined_at.strftime("%b %Y").to_string())
+                        </time>
+                    </dd>
+                </div>
+            </dl>
+        )
+    })
+}
+
+/// A placeholder for [`customer_details`] of the same height.
+#[component]
+async fn customer_details_skeleton() -> Result<impl View> {
+    Ok(view! {
+        card_content(
+            attrs: attributes! { aria-busy="true" },
+            <div class="flex items-center gap-3">
+                avatar(skeleton(attrs: attributes! { class="size-full" }))
+                <div class="flex min-w-0 flex-1 flex-col">
+                    <div class="flex h-6 items-center">
+                        skeleton(attrs: attributes! { class="h-4 w-32 max-w-full" })
+                    </div>
+                    <div class="flex h-5 items-center">
+                        skeleton(attrs: attributes! { class="h-3.5 w-44 max-w-full" })
+                    </div>
+                </div>
+            </div>
+            <dl class="mt-6 grid grid-cols-2 gap-4 text-sm">
+                <div class="flex flex-col gap-1">
+                    <dt class="text-muted-foreground">"City"</dt>
+                    <dd class="flex h-5 items-center">
+                        skeleton(attrs: attributes! { class="h-3.5 w-20" })
+                    </dd>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <dt class="text-muted-foreground">"Customer since"</dt>
+                    <dd class="flex h-5 items-center">
+                        skeleton(attrs: attributes! { class="h-3.5 w-16" })
+                    </dd>
+                </div>
+            </dl>
+        )
     })
 }
 

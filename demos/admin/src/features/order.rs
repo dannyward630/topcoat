@@ -1,6 +1,6 @@
 //! Orders, their line items, and how an order moves from placed to delivered.
 
-use std::{str::FromStr, time::Duration};
+use std::str::FromStr;
 
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,7 @@ use super::{
     catalog::{Money, Product},
     customer::Customer,
 };
-use crate::db::db;
+use crate::db::{db, latency};
 
 /// A purchase by a customer.
 #[derive(Debug, toasty::Model)]
@@ -45,18 +45,6 @@ impl Order {
     /// Returns the order with `id`, or `None` if there is none.
     pub async fn find(cx: &Cx, id: u64) -> Result<Option<Order>> {
         let order = Order::filter_by_id(id).first().exec(&mut db(cx)).await?;
-        Ok(order)
-    }
-
-    /// Returns the order with `id` with its customer, its items, and their products
-    /// loaded, or `None` if there is none.
-    pub async fn find_with_items(cx: &Cx, id: u64) -> Result<Option<Order>> {
-        let order = Order::filter_by_id(id)
-            .include(Order::fields().customer())
-            .include(Order::fields().items().product())
-            .first()
-            .exec(&mut db(cx))
-            .await?;
         Ok(order)
     }
 
@@ -196,6 +184,17 @@ pub struct OrderItem {
 }
 
 impl OrderItem {
+    /// Returns the items of the order with `order_id`, with their products loaded.
+    pub async fn of_order(cx: &Cx, order_id: u64) -> Result<Vec<OrderItem>> {
+        latency().await;
+        let items = OrderItem::filter_by_order_id(order_id)
+            .include(OrderItem::fields().product())
+            .order_by(OrderItem::fields().id().asc())
+            .exec(&mut db(cx))
+            .await?;
+        Ok(items)
+    }
+
     /// The price of all units on this line.
     pub fn subtotal(&self) -> Money {
         Money(self.unit_price.0 * i64::from(self.quantity))
@@ -282,9 +281,7 @@ impl OrderSearch<'_> {
         page: usize,
         per_page: usize,
     ) -> Result<Vec<Order>> {
-        // The demo database answers instantly. Wait a moment, like a busy database
-        // would, so the list's loading state is visible.
-        tokio::time::sleep(Duration::from_millis(600)).await;
+        latency().await;
 
         let orders = self
             .query()
