@@ -3,13 +3,14 @@
 //! The leading underscore makes this module a group: its layout wraps every page
 //! below it without adding a segment to their URLs.
 
+pub mod _dashboard;
 mod orders;
 
 use topcoat::{
     Result,
     context::{Cx, try_request_context},
     icon::{IconData, icon, iconify::iconify_icon},
-    router::{HrefTarget, Slot, href, layout, page, request::uri},
+    router::{HrefTarget, Slot, href, layout, request::uri},
     runtime::{Event, Signal, link, link_attrs, prefetch_mode, signal},
     view::{View, attributes, component, element_id, view},
 };
@@ -55,7 +56,7 @@ static NAV: [NavItem; 2] = [
     NavItem {
         label: "Dashboard",
         icon: iconify_icon!("lucide:layout-dashboard"),
-        target: &page,
+        target: &_dashboard::page,
     },
     NavItem {
         label: "Orders",
@@ -336,24 +337,5 @@ async fn theme_toggle(cx: &Cx) -> Result<impl View> {
                 }
             )
         </form>
-    })
-}
-
-/// The dashboard, the first page after signing in.
-#[page]
-pub async fn page(cx: &Cx) -> Result<impl View> {
-    let user = require_user(cx).await?;
-    let first_name = user.name.split_whitespace().next().unwrap_or(&user.name);
-
-    Ok(view! {
-        <header class="flex flex-col gap-1">
-            <h1 class="text-2xl font-semibold tracking-tight">
-                "Welcome back, "
-                (first_name)
-            </h1>
-            <p class="text-muted-foreground">
-                "Here is what is happening in the store."
-            </p>
-        </header>
     })
 }

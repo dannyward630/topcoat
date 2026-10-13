@@ -30,6 +30,8 @@ pub async fn toggle(cx: &Cx, Form(form): Form<Toggle>) -> Result<SeeOther> {
     if local {
         Ok(see_other(form.return_to))
     } else {
-        Ok(see_other(href!(super::_admin::page).resolve(cx)))
+        Ok(see_other(
+            href!(super::_admin::_dashboard::page).resolve(cx),
+        ))
     }
 }

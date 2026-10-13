@@ -38,7 +38,7 @@ struct SignInFailed {
 #[page]
 pub async fn page(cx: &Cx) -> Result<impl View> {
     if current_user(cx).await?.is_some() {
-        return Err(redirect(href!(super::_admin::page).resolve(cx)).into());
+        return Err(redirect(href!(super::_admin::_dashboard::page).resolve(cx)).into());
     }
 
     let failed = try_request_context::<SignInFailed>(cx);
@@ -176,5 +176,7 @@ async fn submit(cx: &Cx, Form(credentials): Form<Credentials>) -> Result<SeeOthe
     };
 
     sign_in(cx, &user).await?;
-    Ok(see_other(href!(super::_admin::page).resolve(cx)))
+    Ok(see_other(
+        href!(super::_admin::_dashboard::page).resolve(cx),
+    ))
 }
