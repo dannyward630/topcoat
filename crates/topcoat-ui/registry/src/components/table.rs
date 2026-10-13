@@ -38,7 +38,7 @@ pub async fn table(
     #[default] child: Child<'_>,
 ) -> Result<impl View> {
     Ok(view! {
-        <div class="w-full overflow-x-auto">
+        <div data-slot="table" class="w-full overflow-x-auto">
             // The lines go on the `<table>`, which draws them around its rows and
             // leaves the caption outside. They depend on the container's place among
             // its siblings.

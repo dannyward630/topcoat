@@ -42,6 +42,24 @@ pub struct Order {
 }
 
 impl Order {
+    /// Returns the order with `id`, or `None` if there is none.
+    pub async fn find(cx: &Cx, id: u64) -> Result<Option<Order>> {
+        let order = Order::filter_by_id(id).first().exec(&mut db(cx)).await?;
+        Ok(order)
+    }
+
+    /// Returns the order with `id` with its customer, its items, and their products
+    /// loaded, or `None` if there is none.
+    pub async fn find_with_items(cx: &Cx, id: u64) -> Result<Option<Order>> {
+        let order = Order::filter_by_id(id)
+            .include(Order::fields().customer())
+            .include(Order::fields().items().product())
+            .first()
+            .exec(&mut db(cx))
+            .await?;
+        Ok(order)
+    }
+
     /// Moves the order to `status`, if the current status allows it.
     ///
     /// Returns `false` and leaves the order unchanged if it does not.
@@ -104,6 +122,18 @@ impl OrderStatus {
             Self::Delivered => "delivered",
             Self::Cancelled => "cancelled",
             Self::Refunded => "refunded",
+        }
+    }
+
+    /// What moving an order to this status is called, for buttons.
+    pub fn action(self) -> &'static str {
+        match self {
+            Self::Pending => "Mark as pending",
+            Self::Paid => "Mark as paid",
+            Self::Shipped => "Mark as shipped",
+            Self::Delivered => "Mark as delivered",
+            Self::Cancelled => "Cancel order",
+            Self::Refunded => "Refund order",
         }
     }
 

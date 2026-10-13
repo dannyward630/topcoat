@@ -1,6 +1,8 @@
 //! The orders placed in the store, with a search, a status filter, and a choice of
 //! sort order.
 
+mod order_id;
+
 use jiff::Timestamp;
 use serde::Serialize;
 use topcoat::{
@@ -8,10 +10,11 @@ use topcoat::{
     context::Cx,
     icon::{icon, iconify::iconify_icon},
     router::{href, page, query_params},
-    runtime::{Event, Signal, shard, signal},
+    runtime::{Event, Signal, link, shard, signal},
     view::{StaticClass, View, attributes, class, component, element_id, suspense, view},
 };
 
+use self::order_id::OrderId;
 use crate::{
     components::{
         avatar::{AvatarSize, avatar, avatar_fallback},
@@ -354,11 +357,18 @@ async fn order_rows(
                         .iter()
                         .map(|item| item.quantity)
                         .sum::<u32>();
+                    // The order number links to the order. The link covers the whole
+                    // row, so a click anywhere on the row opens the order.
                     table_row(
+                        attrs: attributes! { class="relative" },
                         table_cell(
                             attrs: attributes! { class="font-medium tabular-nums" },
-                            "#"
-                            (order.id)
+                            link(
+                                href: href!(order_id::page, OrderId(order.id)),
+                                attrs: attributes! { class="after:absolute after:inset-0" },
+                                "#"
+                                (order.id)
+                            )
                         )
                         table_cell(
                             <div class="flex items-center gap-3">

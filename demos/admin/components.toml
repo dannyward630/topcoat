@@ -29,7 +29,7 @@ hash = "sha256:1b40f815a96997b28f35b8f385f5849d86ca53ba47fb752a3e795bfc24c3a55d"
 file = "src/components/button.rs"
 
 [registries.topcoat.components.card]
-hash = "sha256:63166ad6fdf41fd409b8c879231d879f90375ef225cda9dc1559151c9deae5fc"
+hash = "sha256:9fb045e11ce7aaf6908530d9bfb838d7521922bfb255f972bb7ec4b7f9bb064c"
 file = "src/components/card.rs"
 
 [registries.topcoat.components.dialog]
@@ -81,7 +81,7 @@ hash = "sha256:3b6d99ca9aef02697ce1142903bd49062ef9f2bd4ecbb1e6b82be0ea6554d1a5"
 file = "src/components/skeleton.rs"
 
 [registries.topcoat.components.table]
-hash = "sha256:7445ede9801a9a9752ecdb274d0503c6b3cc07e06d1c4dea879a8866e801c7c3"
+hash = "sha256:66d75ae824a2fbf2d565b3d5cee1ed1cf80680062967c3e06f1ea6bca5f4eedc"
 file = "src/components/table.rs"
 
 [registries.topcoat.components.tabs]

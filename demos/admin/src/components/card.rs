@@ -8,11 +8,17 @@ use topcoat::{
 const CARD: StaticClass = class!(
     "flex flex-col gap-5 rounded-xl border border-border bg-card py-6",
     "text-card-foreground shadow-sm",
+    // A table at the top or bottom reaches the card's edge, clipped to its corners.
+    "has-[>[data-slot=table]:first-child]:overflow-hidden",
+    "has-[>[data-slot=table]:first-child]:pt-0",
+    "has-[>[data-slot=table]:last-child]:overflow-hidden",
+    "has-[>[data-slot=table]:last-child]:pb-0",
 );
 
 /// A bordered panel that groups related content.
 ///
-/// Pass sections as children. Use a header, body, or footer as needed. `attrs` are
+/// Pass sections as children. Use a header, body, or footer as needed. A table as the
+/// first or last child reaches the card's top or bottom edge. `attrs` are
 /// forwarded to the `<div>`, with extra classes added to its classes.
 ///
 /// ```ignore
