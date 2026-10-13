@@ -1,4 +1,5 @@
-//! Signing in and out, and finding the signed-in user.
+//! Signing in and out, finding the signed-in user, and the guard that sends
+//! signed-out visitors to the sign-in page.
 //!
 //! Topcoat issues the session token and carries it in a cookie. The session records
 //! live in the database, keyed by the token's hash.
@@ -7,12 +8,15 @@ use jiff::Timestamp;
 use topcoat::{
     Result,
     context::{Cx, memoize},
-    router::error::internal_server_error,
+    router::{
+        error::{RouterErrorExt, internal_server_error},
+        href,
+    },
     session,
 };
 
 use super::user::User;
-use crate::db::db;
+use crate::{app::login, db::db};
 
 /// A signed-in browser, stored under the hash of its session token.
 #[derive(Debug, toasty::Model)]
@@ -79,4 +83,15 @@ pub async fn current_user(cx: &Cx) -> Result<Option<User>> {
 
     let user = User::get_by_id(&mut db, &session.user_id).await?;
     Ok(Some(user))
+}
+
+/// Returns the signed-in user, or redirects to the sign-in page.
+///
+/// Call it in every page, shard, and procedure that needs a user. It is cheap to call
+/// repeatedly because [`current_user`] is memoized.
+pub async fn require_user(cx: &Cx) -> Result<&User> {
+    let user = current_user(cx).await?;
+    Ok(user
+        .as_ref()
+        .ok_or_redirect(href!(login::page).resolve(cx))?)
 }

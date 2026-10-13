@@ -4,7 +4,6 @@ mod app;
 mod components;
 mod db;
 mod features;
-mod money;
 mod seed;
 
 #[tokio::main]

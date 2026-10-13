@@ -22,10 +22,9 @@ The first start creates `data.db` next to this file and fills it with demo data.
 | Path | Contents |
 | --- | --- |
 | [`src/app.rs`](src/app.rs) | The router and the HTML document around every page. |
-| [`src/app/login.rs`](src/app/login.rs) | Signing in, and the `require_user` guard. |
+| [`src/app/login.rs`](src/app/login.rs) | The sign-in page. |
 | [`src/app/_admin.rs`](src/app/_admin.rs) | The sidebar layout for signed-in staff, and the dashboard. |
-| [`src/app/_admin/orders.rs`](src/app/_admin/orders.rs) | The order list: a shard that re-renders as you filter and search, and a CSV export. |
-| [`src/app/_admin/orders/order_id.rs`](src/app/_admin/orders/order_id.rs) | One order, and the form that moves it to its next status. |
+| [`src/app/_admin/orders.rs`](src/app/_admin/orders.rs) | The orders page. |
 | [`src/features/`](src/features) | The Toasty models and the rules around them. |
 | [`src/seed.rs`](src/seed.rs) | The demo data written to a fresh database. |
 | [`src/components/`](src/components) | Components installed with `topcoat ui add`, unchanged from the registry. |

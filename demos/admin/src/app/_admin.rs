@@ -5,7 +5,6 @@
 
 mod orders;
 
-use jiff::Timestamp;
 use topcoat::{
     Result,
     context::Cx,
@@ -15,7 +14,7 @@ use topcoat::{
     view::{View, attributes, component, element_id, view},
 };
 
-use super::{login::require_user, logout};
+use super::logout;
 use crate::{
     components::{
         avatar::{AvatarSize, avatar, avatar_fallback},
@@ -38,6 +37,7 @@ use crate::{
         },
     },
     features::{
+        auth::require_user,
         theme::{Theme, theme},
         user::User,
     },
@@ -73,11 +73,6 @@ fn in_section(cx: &Cx, path: &str) -> bool {
             && current
                 .strip_prefix(path)
                 .is_some_and(|rest| rest.starts_with('/')))
-}
-
-/// Formats a timestamp as a date, like `Oct 12, 2026`, in UTC.
-fn display_date(timestamp: Timestamp) -> String {
-    timestamp.strftime("%b %-d, %Y").to_string()
 }
 
 #[layout]

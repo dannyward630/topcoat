@@ -3,14 +3,11 @@
 use jiff::{SignedDuration, Timestamp};
 use toasty::Db;
 
-use crate::{
-    features::{
-        catalog::Product,
-        customer::Customer,
-        order::{Order, OrderItem, OrderStatus},
-        user::{Role, User, hash_password},
-    },
-    money::Money,
+use crate::features::{
+    catalog::{Money, Product},
+    customer::Customer,
+    order::{Order, OrderItem, OrderStatus},
+    user::{Role, User, hash_password},
 };
 
 /// The password of every demo account.

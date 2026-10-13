@@ -1,5 +1,5 @@
 mod _admin;
-mod login;
+pub mod login;
 mod logout;
 mod theme;
 

@@ -1,4 +1,4 @@
-//! Signing in, and the guard that sends signed-out visitors here.
+//! Signing in.
 
 use serde::Deserialize;
 use topcoat::{
@@ -8,7 +8,7 @@ use topcoat::{
     router::{
         Body, Method, StatusCode,
         content::Form,
-        error::{RouterErrorExt, SeeOther, redirect, rewrite, see_other},
+        error::{SeeOther, redirect, rewrite, see_other},
         href, page, route,
     },
     view::{View, attributes, element_id, view},
@@ -29,15 +29,6 @@ use crate::{
     },
     seed::{DEMO_PASSWORD, DEMO_USERS},
 };
-
-/// Returns the signed-in user, or redirects to the sign-in page.
-///
-/// Call it in every page, shard, and procedure that needs a user. It is cheap to call
-/// repeatedly because [`current_user`] is memoized.
-pub async fn require_user(cx: &Cx) -> Result<&User> {
-    let user = current_user(cx).await?;
-    Ok(user.as_ref().ok_or_redirect(href!(page).resolve(cx))?)
-}
 
 /// Tells the sign-in page that the submitted email and password did not match.
 struct SignInFailed {
