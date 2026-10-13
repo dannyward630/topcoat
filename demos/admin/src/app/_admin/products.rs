@@ -1,0 +1,438 @@
+//! The products in the store's catalog, with a search, a stock level filter, and a
+//! choice of sort order.
+
+mod product_id;
+
+use serde::Serialize;
+use topcoat::{
+    Result,
+    context::Cx,
+    icon::{icon, iconify::iconify_icon},
+    router::{href, page, query_params},
+    runtime::{Event, Signal, link, shard, signal},
+    view::{StaticClass, View, attributes, class, component, element_id, suspense, view},
+};
+
+use self::product_id::ProductId;
+use super::page_window;
+use crate::{
+    components::{
+        badge::{BadgeVariant, badge},
+        button::{ButtonSize, ButtonVariant, button},
+        input::input,
+        pagination::{
+            pagination, pagination_content, pagination_ellipsis, pagination_item, pagination_link,
+            pagination_next, pagination_previous,
+        },
+        select::select,
+        skeleton::skeleton,
+        table::{table, table_body, table_cell, table_head, table_header, table_row},
+    },
+    features::{
+        auth::require_user,
+        catalog::{ProductSearch, ProductSort, StockLevel},
+    },
+};
+
+/// How many products a page of the list shows.
+const PER_PAGE: usize = 20;
+
+/// The filters the list starts with.
+///
+/// The page links point here, so they also work when opened in a new tab. A plain
+/// click changes the page in place without changing the URL.
+#[query_params(error = redirect("?"))]
+#[derive(Serialize)]
+pub struct ProductsQuery {
+    q: Option<String>,
+    stock: Option<StockLevel>,
+    sort: Option<ProductSort>,
+    page: Option<usize>,
+}
+
+impl ProductsQuery {
+    /// The query for page `number` of the products at `stock` level that match
+    /// `text`, sorted by `sort`.
+    fn new(text: &str, stock: Option<StockLevel>, sort: ProductSort, number: usize) -> Self {
+        Self {
+            q: (!text.is_empty()).then(|| text.to_owned()),
+            stock,
+            sort: (sort != ProductSort::default()).then_some(sort),
+            page: (number > 1).then_some(number),
+        }
+    }
+}
+
+#[page]
+pub async fn page(cx: &Cx) -> Result<impl View> {
+    require_user(cx).await?;
+    let query = query_params::<ProductsQuery>(cx)?;
+    let initial_stock = query.stock.map_or("", StockLevel::slug);
+    let initial_sort = query.sort.unwrap_or_default().slug();
+
+    // The filters live in the browser. Changing one re-renders only the list.
+    let search = signal(cx, || query.q.clone().unwrap_or_default());
+    let stock = signal(cx, || initial_stock.to_owned());
+    let sort = signal(cx, || initial_sort.to_owned());
+    let page_number = signal(cx, || query.page.unwrap_or(1));
+    let search_id = element_id(cx);
+    let stock_id = element_id(cx);
+    let sort_id = element_id(cx);
+
+    Ok(view! {
+        <section
+            class="overflow-hidden rounded-xl border border-border bg-card \
+                text-card-foreground shadow-xs"
+        >
+            <div class="flex flex-col gap-2 p-3 sm:flex-row sm:items-center">
+                <div class="relative sm:max-w-xs sm:flex-1">
+                    <label for=(&search_id) class="sr-only">"Search products"</label>
+                    icon(
+                        data: iconify_icon!("lucide:search"),
+                        attrs: attributes! {
+                            class="pointer-events-none absolute top-1/2 left-3 size-4 \
+                                -translate-y-1/2 text-muted-foreground"
+                        }
+                    )
+                    input(
+                        attrs: attributes! {
+                            id=(&search_id)
+                            type="search"
+                            placeholder="Search names or SKUs"
+                            class="pl-9"
+                            :value=$(search.get())
+                            @input=$(|e: Event| {
+                                search.set(e.target.value);
+                                page_number.set(1);
+                            })
+                        }
+                    )
+                </div>
+                <div class="grid grid-cols-2 gap-2 sm:ml-auto sm:flex">
+                    <label for=(&stock_id) class="sr-only">"Stock level"</label>
+                    select(
+                        attrs: attributes! {
+                            id=(&stock_id)
+                            class="sm:w-40"
+                            :value=$(stock.get())
+                            @change=$(|e: Event| {
+                                stock.set(e.target.value);
+                                page_number.set(1);
+                            })
+                        },
+                        <option value="" selected=(initial_stock.is_empty())>
+                            "All stock levels"
+                        </option>
+                        for option in StockLevel::ALL {
+                            <option
+                                value=(option.slug())
+                                selected=(initial_stock == option.slug())
+                            >
+                                (option.label())
+                            </option>
+                        }
+                    )
+                    <label for=(&sort_id) class="sr-only">"Sort by"</label>
+                    select(
+                        attrs: attributes! {
+                            id=(&sort_id)
+                            class="sm:w-40"
+                            :value=$(sort.get())
+                            @change=$(|e: Event| {
+                                sort.set(e.target.value);
+                                page_number.set(1);
+                            })
+                        },
+                        for option in ProductSort::ALL {
+                            <option
+                                value=(option.slug())
+                                selected=(initial_sort == option.slug())
+                            >
+                                (option.label())
+                            </option>
+                        }
+                    )
+                </div>
+            </div>
+
+            product_list(
+                search: search.clone(),
+                stock: stock.clone(),
+                sort: sort.clone(),
+                page_number: page_number.clone()
+            )
+        </section>
+    })
+}
+
+/// One page of the products that match the filters, with links to the other pages.
+///
+/// The products load after the rest of the list, with a skeleton in their place until
+/// they arrive.
+#[shard]
+async fn product_list(
+    cx: &Cx,
+    search: Signal<String>,
+    stock: Signal<String>,
+    sort: Signal<String>,
+    page_number: Signal<usize>,
+) -> Result<impl View> {
+    // The browser can request a shard directly, so it checks the user itself.
+    require_user(cx).await?;
+
+    let text = search.get();
+    // An unknown stock level or sort order comes from a tampered request. Fall back
+    // to every stock level and the default order then.
+    let selected = stock.get().parse::<StockLevel>().ok();
+    let sort = sort.get().parse::<ProductSort>().unwrap_or_default();
+    let count = ProductSearch {
+        stock: selected,
+        text: &text,
+    }
+    .count(cx)
+    .await?;
+
+    let pages = count.div_ceil(PER_PAGE).max(1);
+    let current = page_number.get().clamp(1, pages);
+    let first = (current - 1) * PER_PAGE + 1;
+    let last = (current * PER_PAGE).min(count);
+    let previous = current.saturating_sub(1).max(1);
+    let next = (current + 1).min(pages);
+
+    Ok(view! {
+        if count == 0 {
+            <div class="flex flex-col items-center gap-3 px-6 py-16 text-center">
+                <span
+                    class="flex size-10 items-center justify-center rounded-full \
+                        bg-foreground/5 text-muted-foreground"
+                >
+                    icon(data: iconify_icon!("lucide:package-search"))
+                </span>
+                <div class="flex flex-col gap-1">
+                    <p class="font-medium">"No products found"</p>
+                    <p class="text-sm text-muted-foreground">
+                        "No products match your search and stock level."
+                    </p>
+                </div>
+                button(
+                    variant: ButtonVariant::Outline,
+                    size: ButtonSize::Sm,
+                    attrs: attributes! {
+                        type="button"
+                        @click=$(|_e: Event| {
+                            search.set("".to_owned());
+                            stock.set("".to_owned());
+                            page_number.set(1);
+                        })
+                    },
+                    "Clear filters"
+                )
+            </div>
+        } else {
+            suspense(
+                fallback: view! { product_rows_skeleton(rows: last + 1 - first) },
+                product_rows(
+                    filter: ProductSearch { stock: selected, text: &text },
+                    sort: sort,
+                    number: current
+                )
+            )
+
+            <div class="flex flex-col items-center gap-3 px-6 py-3 sm:flex-row">
+                <p class="shrink-0 text-sm text-muted-foreground tabular-nums">
+                    "Showing "
+                    <span class="font-medium text-foreground">
+                        (first)
+                        "-"
+                        (last)
+                    </span>
+                    " of "
+                    <span class="font-medium text-foreground">(count)</span>
+                    " products"
+                </p>
+                // Pulled right by the "Next" link's padding, so its chevron lines up
+                // with the prices above.
+                pagination(
+                    attrs: attributes! { class="sm:-mr-3 sm:justify-end" },
+                    pagination_content(
+                        pagination_item(
+                            pagination_previous(
+                                attrs: attributes! {
+                                    href=(href!(page).query(
+                                        &ProductsQuery::new(&text, selected, sort, previous),
+                                    ))
+                                    aria-disabled=((current == 1).then_some("true"))
+                                    class=(class!("pointer-events-none opacity-50" if current == 1))
+                                    @click=$(|e: Event| {
+                                        e.prevent_default();
+                                        page_number.set(previous);
+                                    })
+                                }
+                            )
+                        )
+                        // Narrow screens only have room for the previous and next
+                        // links.
+                        for number in page_window(current, pages) {
+                            pagination_item(
+                                attrs: attributes! { class="hidden sm:block" },
+                                if let Some(number) = number {
+                                    pagination_link(
+                                        active: number == current,
+                                        attrs: attributes! {
+                                            href=(href!(page).query(
+                                                &ProductsQuery::new(&text, selected, sort, number),
+                                            ))
+                                            @click=$(|e: Event| {
+                                                e.prevent_default();
+                                                page_number.set(number);
+                                            })
+                                        },
+                                        (number)
+                                    )
+                                } else {
+                                    pagination_ellipsis()
+                                }
+                            )
+                        }
+                        pagination_item(
+                            pagination_next(
+                                attrs: attributes! {
+                                    href=(href!(page).query(
+                                        &ProductsQuery::new(&text, selected, sort, next),
+                                    ))
+                                    aria-disabled=((current == pages).then_some("true"))
+                                    class=(class!("pointer-events-none opacity-50" if current == pages))
+                                    @click=$(|e: Event| {
+                                        e.prevent_default();
+                                        page_number.set(next);
+                                    })
+                                }
+                            )
+                        )
+                    )
+                )
+            </div>
+        }
+    })
+}
+
+/// The table of products on page `number` of the list, sorted by `sort`.
+#[component]
+async fn product_rows(
+    cx: &Cx,
+    filter: ProductSearch<'_>,
+    sort: ProductSort,
+    number: usize,
+) -> Result<impl View> {
+    let products = filter.page(cx, sort, number, PER_PAGE).await?;
+
+    Ok(view! {
+        table(
+            product_columns()
+            table_body(
+                for product in &products {
+                    // The name links to the product. The link covers the whole row, so
+                    // a click anywhere on the row opens the product.
+                    table_row(
+                        attrs: attributes! { class="relative" },
+                        table_cell(
+                            // Long names shorten with an ellipsis instead of widening
+                            // the table.
+                            <div class="flex max-w-80 min-w-0 flex-col">
+                                link(
+                                    href: href!(product_id::page, ProductId(product.id)),
+                                    attrs: attributes! {
+                                        class="truncate font-medium after:absolute after:inset-0"
+                                    },
+                                    (&product.name)
+                                )
+                                <span class="font-mono text-xs text-muted-foreground">
+                                    (&product.sku)
+                                </span>
+                            </div>
+                        )
+                        table_cell(stock_badge(level: product.stock_level()))
+                        table_cell(
+                            attrs: attributes! { class="text-right text-muted-foreground tabular-nums" },
+                            (product.stock)
+                        )
+                        table_cell(
+                            attrs: attributes! { class="text-right font-medium tabular-nums" },
+                            (product.price)
+                        )
+                    )
+                }
+            )
+        )
+    })
+}
+
+/// A placeholder for [`product_rows`] with `rows` rows of the same height.
+#[component]
+async fn product_rows_skeleton(rows: usize) -> Result<impl View> {
+    Ok(view! {
+        table(
+            attrs: attributes! { aria-busy="true" },
+            product_columns()
+            table_body(
+                for _ in 0..rows {
+                    table_row(
+                        table_cell(
+                            <div class="flex max-w-80 min-w-0 flex-col">
+                                <div class="flex h-5 items-center">
+                                    skeleton(
+                                        attrs: attributes! { class="h-3.5 w-40 max-w-full" }
+                                    )
+                                </div>
+                                <div class="flex h-4 items-center">
+                                    skeleton(attrs: attributes! { class="h-3 w-16" })
+                                </div>
+                            </div>
+                        )
+                        table_cell(skeleton(attrs: attributes! { class="h-5.5 w-20" }))
+                        table_cell(
+                            skeleton(attrs: attributes! { class="ml-auto h-4 w-8" })
+                        )
+                        table_cell(
+                            skeleton(attrs: attributes! { class="ml-auto h-4 w-16" })
+                        )
+                    )
+                }
+            )
+        )
+    })
+}
+
+/// The header row naming the columns of the product table.
+#[component]
+async fn product_columns() -> Result<impl View> {
+    Ok(view! {
+        table_header(
+            table_row(
+                // The product column takes the space the other columns leave.
+                table_head(attrs: attributes! { class="w-full" }, "Product")
+                table_head("Status")
+                table_head(attrs: attributes! { class="text-right" }, "Stock")
+                table_head(attrs: attributes! { class="text-right" }, "Price")
+            )
+        )
+    })
+}
+
+/// A badge naming a product's stock level, with a dot colored by how urgent it is.
+#[component]
+async fn stock_badge(level: StockLevel) -> Result<impl View> {
+    let dot: StaticClass = match level {
+        StockLevel::InStock => class!("bg-emerald-500"),
+        StockLevel::Low => class!("bg-amber-500"),
+        StockLevel::Out => class!("bg-rose-500"),
+    };
+
+    Ok(view! {
+        badge(
+            variant: BadgeVariant::Outline,
+            <span class=(class!("size-1.5 rounded-full", dot))></span>
+            (level.label())
+        )
+    })
+}

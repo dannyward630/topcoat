@@ -14,7 +14,7 @@ const DATABASE_URL: &str = concat!("sqlite:", env!("CARGO_MANIFEST_DIR"), "/data
 const MIGRATIONS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/toasty");
 
 /// How long [`latency`] waits.
-const LATENCY: Duration = Duration::from_millis(600);
+const LATENCY: Duration = Duration::from_millis(500);
 
 /// The migrations in `toasty/`, compiled into the binary.
 const MIGRATIONS: MigrationSet = toasty::embed_migrations!();
@@ -54,4 +54,22 @@ pub fn db(cx: &Cx) -> Db {
 /// too fast to see. Call it before a query whose page shows a skeleton while it loads.
 pub async fn latency() {
     tokio::time::sleep(LATENCY).await;
+}
+
+/// Returns a LIKE pattern that matches any text containing `text`.
+///
+/// `%` and `_` are wildcards in a LIKE pattern, so the pattern escapes them with `\` to
+/// match them literally. Pass it to `like_with_escape` with `'\\'` as the escape
+/// character. SQLite's LIKE ignores the case of ASCII letters.
+pub fn contains_pattern(text: &str) -> String {
+    let mut pattern = String::with_capacity(text.len() + 2);
+    pattern.push('%');
+    for char in text.chars() {
+        if matches!(char, '%' | '_' | '\\') {
+            pattern.push('\\');
+        }
+        pattern.push(char);
+    }
+    pattern.push('%');
+    pattern
 }

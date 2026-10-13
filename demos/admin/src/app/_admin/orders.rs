@@ -15,6 +15,7 @@ use topcoat::{
 };
 
 use self::order_id::OrderId;
+use super::page_window;
 use crate::{
     components::{
         avatar::{AvatarSize, avatar, avatar_fallback},
@@ -315,24 +316,6 @@ async fn order_list(
             </div>
         }
     })
-}
-
-/// The page numbers to link to, with `None` where an ellipsis stands for the pages
-/// left out.
-///
-/// It keeps the first and last pages and the pages around `current`. An ellipsis
-/// never hides a single page.
-fn page_window(current: usize, pages: usize) -> Vec<Option<usize>> {
-    let shown = |number: usize| number == 1 || number == pages || number.abs_diff(current) <= 1;
-    let mut window = Vec::new();
-    for number in 1..=pages {
-        if shown(number) || (shown(number - 1) && shown(number + 1)) {
-            window.push(Some(number));
-        } else if window.last() != Some(&None) {
-            window.push(None);
-        }
-    }
-    window
 }
 
 /// The table of orders on page `number` of the list, sorted by `sort`.

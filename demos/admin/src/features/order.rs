@@ -14,7 +14,7 @@ use super::{
     catalog::{Money, Product},
     customer::Customer,
 };
-use crate::db::{db, latency};
+use crate::db::{contains_pattern, db, latency};
 
 /// A purchase by a customer.
 #[derive(Debug, toasty::Model)]
@@ -332,18 +332,7 @@ impl OrderSearch<'_> {
 
         let text = self.text.trim();
         let text = (!text.is_empty()).then(|| {
-            // `%` and `_` are wildcards in a LIKE pattern, so escape them to match
-            // them literally.
-            let mut pattern = String::from("%");
-            for char in text.chars() {
-                if matches!(char, '%' | '_' | '\\') {
-                    pattern.push('\\');
-                }
-                pattern.push(char);
-            }
-            pattern.push('%');
-
-            // SQLite's LIKE ignores the case of ASCII letters.
+            let pattern = contains_pattern(text);
             let customer = Order::fields().customer();
             let mut matches = customer
                 .name()

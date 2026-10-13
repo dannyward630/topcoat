@@ -5,6 +5,7 @@
 
 pub mod _dashboard;
 mod orders;
+mod products;
 
 use topcoat::{
     Result,
@@ -52,7 +53,7 @@ struct NavItem {
 }
 
 /// The sidebar's navigation, in display order.
-static NAV: [NavItem; 2] = [
+static NAV: [NavItem; 3] = [
     NavItem {
         label: "Dashboard",
         icon: iconify_icon!("lucide:layout-dashboard"),
@@ -62,6 +63,11 @@ static NAV: [NavItem; 2] = [
         label: "Orders",
         icon: iconify_icon!("lucide:shopping-cart"),
         target: &orders::page,
+    },
+    NavItem {
+        label: "Products",
+        icon: iconify_icon!("lucide:package"),
+        target: &products::page,
     },
 ];
 
@@ -78,6 +84,24 @@ fn in_section(cx: &Cx, path: &str) -> bool {
             && current
                 .strip_prefix(path)
                 .is_some_and(|rest| rest.starts_with('/')))
+}
+
+/// The page numbers to link to, with `None` where an ellipsis stands for the pages
+/// left out.
+///
+/// It keeps the first and last pages and the pages around `current`. An ellipsis
+/// never hides a single page.
+fn page_window(current: usize, pages: usize) -> Vec<Option<usize>> {
+    let shown = |number: usize| number == 1 || number == pages || number.abs_diff(current) <= 1;
+    let mut window = Vec::new();
+    for number in 1..=pages {
+        if shown(number) || (shown(number - 1) && shown(number + 1)) {
+            window.push(Some(number));
+        } else if window.last() != Some(&None) {
+            window.push(None);
+        }
+    }
+    window
 }
 
 #[layout]
