@@ -191,6 +191,8 @@ For example, `--background` sets the page color, while `--card` and `--card-fore
 
 Add the `dark` class to `<html>` to enable dark mode for the page, or to another ancestor to enable it for a subtree. Edit the `.dark` variables in `styles.css` to change its colors.
 
+Shadows are off by default, so borders alone separate surfaces. The `--shadow-xs` and `--shadow-sm` variables are transparent, and `styles.css` keeps the shadow values in comments next to them. Swap them in, in both `:root` and `.dark`, to turn shadows on.
+
 The UI commands preserve `styles.css` after initialization, so you can customize it freely.
 
 # Updating components

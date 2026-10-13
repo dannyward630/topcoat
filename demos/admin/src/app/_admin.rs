@@ -113,7 +113,9 @@ async fn shell(cx: &Cx, slot: Slot<'_>) -> Result<impl View> {
                     page_breadcrumb()
                     theme_toggle()
                 )
-                <div class="flex flex-1 flex-col gap-6 p-6">(slot)</div>
+                <div class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6">
+                    (slot)
+                </div>
             )
         )
     })

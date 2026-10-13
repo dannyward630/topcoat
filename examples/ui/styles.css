@@ -28,6 +28,12 @@
      --shadow-xs               a subtle shadow for raised controls
      --shadow-sm               a shadow for raised surfaces: cards, menus
 
+   Shadows are off by default: both shadow tokens are transparent, and borders
+   separate surfaces instead. To turn them on, use the commented values next
+   to the tokens in `:root` and `.dark`. Keep `0 0 #0000` rather than `none`
+   for a disabled shadow, since Tailwind combines shadows and rings into one
+   `box-shadow` and `none` would remove the ring too.
+
    Components derive hover and press states from their fill or foreground
    color at reduced opacity. The sidebar has its own accent token for
    interactive rows, so it can be themed independently.
@@ -96,10 +102,13 @@
   --sidebar-accent-foreground: oklch(0.24 0.012 260);
   --sidebar-border: oklch(0.9 0.008 260);
   --sidebar-ring: oklch(0.32 0.02 260);
+  /* For shadows, use these values instead:
   --shadow-xs: 0 1px 2px oklch(0.24 0.02 260 / 12%);
   --shadow-sm:
     0 1px 2px oklch(0.24 0.02 260 / 10%),
-    0 2px 8px -2px oklch(0.24 0.02 260 / 9%);
+    0 2px 8px -2px oklch(0.24 0.02 260 / 9%); */
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
 }
 
 .dark {
@@ -124,10 +133,13 @@
   --sidebar-accent-foreground: oklch(0.93 0.006 260);
   --sidebar-border: oklch(0.3 0.012 260);
   --sidebar-ring: oklch(0.6 0.02 260);
+  /* For shadows, use these values instead:
   --shadow-xs: 0 1px 2px oklch(0 0 0 / 35%);
   --shadow-sm:
     0 1px 2px oklch(0 0 0 / 35%),
-    0 2px 8px -2px oklch(0 0 0 / 30%);
+    0 2px 8px -2px oklch(0 0 0 / 30%); */
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
 }
 
 @layer base {

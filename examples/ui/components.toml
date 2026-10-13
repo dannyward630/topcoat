@@ -5,7 +5,7 @@ components_dir = "src/components"
 [theme]
 name = "neutral"
 registry = "topcoat"
-hash = "sha256:6e451a2d3470b0ee544ccf4240da8631bad4c807a06ae0d3a1fc77154b86c3b9"
+hash = "sha256:36961244dab6cac17e4c019d22c0bdddb763b87092a54130b547f5cb7dd6c17c"
 file = "styles.css"
 
 [registries.topcoat.components.accordion]
