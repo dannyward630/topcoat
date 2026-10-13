@@ -83,16 +83,11 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
             <p class="text-muted-foreground">"Every order placed in the store."</p>
         </header>
 
-        // The first and last columns get more room from the panel's edges.
         <section
             class="overflow-hidden rounded-xl border border-border bg-card \
-                text-card-foreground shadow-xs [&_tr>*:first-child]:pl-5 \
-                [&_tr>*:last-child]:pr-5"
+                text-card-foreground shadow-xs"
         >
-            <div
-                class="flex flex-col gap-2 border-b border-border p-3 sm:flex-row \
-                    sm:items-center"
-            >
+            <div class="flex flex-col gap-2 p-3 sm:flex-row sm:items-center">
                 <div class="relative sm:max-w-xs sm:flex-1">
                     <label for=(&search_id) class="sr-only">"Search orders"</label>
                     icon(
@@ -246,9 +241,7 @@ async fn order_list(
                 )
             )
 
-            <div
-                class="flex flex-col items-center gap-3 border-t border-border px-5 py-3 sm:flex-row"
-            >
+            <div class="flex flex-col items-center gap-3 px-6 py-3 sm:flex-row">
                 <p class="shrink-0 text-sm text-muted-foreground tabular-nums">
                     "Showing "
                     <span class="font-medium text-foreground">

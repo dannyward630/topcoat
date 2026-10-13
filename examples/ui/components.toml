@@ -125,7 +125,7 @@ hash = "sha256:ce9a0c7be3ac7187f0935c193bec82f8587953c8a85fdbaf29c08d9593365c36"
 file = "src/components/switch.rs"
 
 [registries.topcoat.components.table]
-hash = "sha256:8579ede1083af6d1c1d185110a885146e23fd8612d07d3d6d03b24b01ea523b6"
+hash = "sha256:7445ede9801a9a9752ecdb274d0503c6b3cc07e06d1c4dea879a8866e801c7c3"
 file = "src/components/table.rs"
 
 [registries.topcoat.components.tabs]
