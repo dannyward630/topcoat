@@ -11,6 +11,7 @@ pub mod floating;
 pub mod input;
 pub mod label;
 pub mod pagination;
+pub mod select;
 pub mod separator;
 pub mod sheet;
 pub mod sidebar;

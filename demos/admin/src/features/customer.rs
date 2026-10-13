@@ -24,3 +24,14 @@ pub struct Customer {
     #[has_many]
     pub orders: toasty::Deferred<Vec<Order>>,
 }
+
+impl Customer {
+    /// The initials of the customer's name, for avatars.
+    pub fn initials(&self) -> String {
+        self.name
+            .split_whitespace()
+            .filter_map(|word| word.chars().next())
+            .take(2)
+            .collect()
+    }
+}

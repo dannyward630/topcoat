@@ -1,9 +1,13 @@
 //! Orders, their line items, and how an order moves from placed to delivered.
 
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
+use toasty::{
+    schema::Model,
+    stmt::{Expr, List},
+};
 use topcoat::{Result, context::Cx};
 
 use super::{
@@ -159,5 +163,150 @@ impl OrderItem {
     /// The price of all units on this line.
     pub fn subtotal(&self) -> Money {
         Money(self.unit_price.0 * i64::from(self.quantity))
+    }
+}
+
+/// The order to list orders in.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OrderSort {
+    /// The most recently placed orders first.
+    #[default]
+    Newest,
+    /// The earliest placed orders first.
+    Oldest,
+    /// The most expensive orders first.
+    HighestTotal,
+    /// The least expensive orders first.
+    LowestTotal,
+}
+
+impl OrderSort {
+    /// Every sort order, in the order to offer them.
+    pub const ALL: [Self; 4] = [
+        Self::Newest,
+        Self::Oldest,
+        Self::HighestTotal,
+        Self::LowestTotal,
+    ];
+
+    /// The sort order's name, for display.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Newest => "Newest first",
+            Self::Oldest => "Oldest first",
+            Self::HighestTotal => "Highest total",
+            Self::LowestTotal => "Lowest total",
+        }
+    }
+
+    /// The sort order's name in URLs and forms. [`FromStr`] reads it back.
+    pub fn slug(self) -> &'static str {
+        match self {
+            Self::Newest => "newest",
+            Self::Oldest => "oldest",
+            Self::HighestTotal => "highest-total",
+            Self::LowestTotal => "lowest-total",
+        }
+    }
+}
+
+impl FromStr for OrderSort {
+    type Err = UnknownSort;
+
+    fn from_str(slug: &str) -> Result<Self, Self::Err> {
+        Self::ALL
+            .into_iter()
+            .find(|sort| sort.slug() == slug)
+            .ok_or(UnknownSort)
+    }
+}
+
+/// The error for a string that names no [`OrderSort`].
+#[derive(Debug)]
+pub struct UnknownSort;
+
+/// Which orders to list.
+#[derive(Debug, Default)]
+pub struct OrderSearch<'a> {
+    /// Only orders with this status, or all orders if `None`.
+    pub status: Option<OrderStatus>,
+    /// Text to find in the customer's name or email, or the order number. Empty text
+    /// matches every order.
+    pub text: &'a str,
+}
+
+impl OrderSearch<'_> {
+    /// Returns the matching orders on page `page` of pages with `per_page` orders each,
+    /// sorted by `sort`, with their customers and items loaded. The first page is 1.
+    pub async fn page(
+        &self,
+        cx: &Cx,
+        sort: OrderSort,
+        page: usize,
+        per_page: usize,
+    ) -> Result<Vec<Order>> {
+        // The demo database answers instantly. Wait a moment, like a busy database
+        // would, so the list's loading state is visible.
+        tokio::time::sleep(Duration::from_millis(600)).await;
+
+        let orders = self
+            .query()
+            .include(Order::fields().customer())
+            .include(Order::fields().items())
+            .order_by(match sort {
+                // IDs follow the order the orders were placed in.
+                OrderSort::Newest => Order::fields().id().desc(),
+                OrderSort::Oldest => Order::fields().id().asc(),
+                OrderSort::HighestTotal => Order::fields().total().desc(),
+                OrderSort::LowestTotal => Order::fields().total().asc(),
+            })
+            .limit(per_page)
+            .offset(page.saturating_sub(1) * per_page)
+            .exec(&mut db(cx))
+            .await?;
+        Ok(orders)
+    }
+
+    /// Returns how many orders match.
+    pub async fn count(&self, cx: &Cx) -> Result<usize> {
+        let count = self.query().count().exec(&mut db(cx)).await?;
+        Ok(usize::try_from(count).unwrap_or(usize::MAX))
+    }
+
+    fn query(&self) -> <Order as Model>::Query<List<Order>> {
+        let status = self
+            .status
+            .map(|status| Order::fields().status().eq(status));
+
+        let text = self.text.trim();
+        let text = (!text.is_empty()).then(|| {
+            // `%` and `_` are wildcards in a LIKE pattern, so escape them to match
+            // them literally.
+            let mut pattern = String::from("%");
+            for char in text.chars() {
+                if matches!(char, '%' | '_' | '\\') {
+                    pattern.push('\\');
+                }
+                pattern.push(char);
+            }
+            pattern.push('%');
+
+            // SQLite's LIKE ignores the case of ASCII letters.
+            let customer = Order::fields().customer();
+            let mut matches = customer
+                .name()
+                .like_with_escape(pattern.clone(), '\\')
+                .or(customer.email().like_with_escape(pattern, '\\'));
+            if let Ok(id) = text.trim_start_matches('#').parse::<u64>() {
+                matches = matches.or(Order::fields().id().eq(id));
+            }
+            matches
+        });
+
+        match [status, text].into_iter().flatten().reduce(Expr::and) {
+            Some(filter) => Order::filter(filter),
+            None => Order::all(),
+        }
     }
 }

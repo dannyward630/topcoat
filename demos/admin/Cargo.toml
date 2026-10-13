@@ -10,7 +10,7 @@ jiff.workspace = true
 serde = { workspace = true, features = ["derive"] }
 toasty = { workspace = true, features = ["jiff", "migration", "sqlite"] }
 toasty-cli.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 topcoat = { workspace = true, features = ["font-fontsource", "icon-iconify", "tailwind", "ui"] }
 
 [build-dependencies]

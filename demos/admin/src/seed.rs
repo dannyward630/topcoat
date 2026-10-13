@@ -243,10 +243,10 @@ fn status_for_age(rng: &mut Rng, age: SignedDuration) -> OrderStatus {
         return OrderStatus::Refunded;
     }
 
-    match age.as_hours() / 24 {
-        0..=1 => OrderStatus::Pending,
-        2..=3 => OrderStatus::Paid,
-        4..=8 => OrderStatus::Shipped,
+    match age.as_hours() {
+        0..12 => OrderStatus::Pending,
+        12..48 => OrderStatus::Paid,
+        48..144 => OrderStatus::Shipped,
         _ => OrderStatus::Delivered,
     }
 }
