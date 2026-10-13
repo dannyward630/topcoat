@@ -81,7 +81,7 @@ hash = "sha256:3b6d99ca9aef02697ce1142903bd49062ef9f2bd4ecbb1e6b82be0ea6554d1a5"
 file = "src/components/skeleton.rs"
 
 [registries.topcoat.components.table]
-hash = "sha256:66d75ae824a2fbf2d565b3d5cee1ed1cf80680062967c3e06f1ea6bca5f4eedc"
+hash = "sha256:08c96bff8e38ddc9398ab231bd326bcf10901bd866b865c3190a57f58996911d"
 file = "src/components/table.rs"
 
 [registries.topcoat.components.tabs]
