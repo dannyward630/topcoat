@@ -48,6 +48,24 @@ impl Order {
         Ok(order)
     }
 
+    /// Returns the `limit` oldest orders that wait for the store to act: those waiting
+    /// for payment or to be shipped. Their customers are loaded.
+    pub async fn awaiting_action(cx: &Cx, limit: usize) -> Result<Vec<Order>> {
+        latency().await;
+        let status = Order::fields().status();
+        let orders = Order::filter(
+            status
+                .eq(OrderStatus::Pending)
+                .or(status.eq(OrderStatus::Paid)),
+        )
+        .include(Order::fields().customer())
+        .order_by(Order::fields().placed_at().asc())
+        .limit(limit)
+        .exec(&mut db(cx))
+        .await?;
+        Ok(orders)
+    }
+
     /// Moves the order to `status`, if the current status allows it.
     ///
     /// Returns `false` and leaves the order unchanged if it does not.

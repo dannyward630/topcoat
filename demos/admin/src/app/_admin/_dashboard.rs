@@ -1,5 +1,5 @@
 //! The dashboard, the first page after signing in, with the store's figures for
-//! today.
+//! today and the orders waiting for the store to act.
 //!
 //! The leading underscore keeps the page at the URL of the group it is in.
 
@@ -9,18 +9,28 @@ use tokio::time::{MissedTickBehavior, interval};
 use topcoat::{
     Result,
     context::Cx,
-    router::page,
-    runtime::{connected, shard},
-    view::{EmitToken, StaticClass, View, attributes, class, component, emit, live, view},
+    router::{href, page},
+    runtime::{connected, link, shard},
+    view::{
+        EmitToken, StaticClass, View, attributes, class, component, emit, live, suspense, view,
+    },
 };
 
+use super::orders::{
+    order_id::{self, OrderId},
+    status_badge, time_ago,
+};
 use crate::{
     components::{
-        card::card,
+        avatar::{AvatarSize, avatar, avatar_fallback},
+        card::{card, card_description, card_header, card_title},
         chart::{bar_chart, line_chart},
+        skeleton::skeleton,
+        table::{table, table_body, table_cell, table_head, table_header, table_row},
     },
     features::{
         auth::require_user,
+        order::Order,
         stats::{SalesStats, VisitorStats},
     },
 };
@@ -45,6 +55,19 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
         </header>
 
         todays_stats()
+
+        <section class="flex flex-col gap-3">
+            <h2 class="font-semibold">"Needs attention"</h2>
+            card(
+                card_header(
+                    card_title("Open orders")
+                    card_description(
+                        "Orders waiting for payment or shipment, oldest first."
+                    )
+                )
+                suspense(fallback: view! { open_orders_skeleton() }, open_orders())
+            )
+        </section>
     })
 }
 
@@ -233,6 +256,125 @@ async fn figure_details(figure: &Figure, accent: StaticClass) -> Result<impl Vie
                 Chart::Line(values) => line_chart(values: values),
             }
         </div>
+    })
+}
+
+/// How many orders [`open_orders`] shows.
+const OPEN_ORDERS: usize = 6;
+
+/// A table of the oldest orders waiting for payment or shipment.
+#[component]
+async fn open_orders(cx: &Cx) -> Result<impl View> {
+    let orders = Order::awaiting_action(cx, OPEN_ORDERS).await?;
+
+    Ok(view! {
+        if orders.is_empty() {
+            <p class="px-6 text-sm text-muted-foreground">
+                "All caught up. No orders are waiting."
+            </p>
+        } else {
+            table(
+                open_order_columns()
+                table_body(
+                    for order in &orders {
+                        let customer = order.customer.get();
+                        // The link covers the whole row, so a click anywhere on the row
+                        // opens the order.
+                        table_row(
+                            attrs: attributes! { class="relative" },
+                            table_cell(
+                                attrs: attributes! { class="font-medium tabular-nums" },
+                                link(
+                                    href: href!(order_id::page, OrderId(order.id)),
+                                    attrs: attributes! { class="after:absolute after:inset-0" },
+                                    "#"
+                                    (order.id)
+                                )
+                            )
+                            table_cell(
+                                <div class="flex items-center gap-3">
+                                    avatar(
+                                        size: AvatarSize::Sm,
+                                        avatar_fallback((customer.initials()))
+                                    )
+                                    <span class="max-w-64 truncate font-medium">
+                                        (&customer.name)
+                                    </span>
+                                </div>
+                            )
+                            table_cell(status_badge(status: order.status))
+                            table_cell(
+                                attrs: attributes! { class="text-muted-foreground" },
+                                <time
+                                    datetime=(order.placed_at.to_string())
+                                    title=(order
+                                        .placed_at
+                                        .strftime("%b %-d, %Y at %H:%M UTC")
+                                        .to_string())
+                                >
+                                    (time_ago(order.placed_at))
+                                </time>
+                            )
+                            table_cell(
+                                attrs: attributes! { class="text-right font-medium tabular-nums" },
+                                (order.total)
+                            )
+                        )
+                    }
+                )
+            )
+        }
+    })
+}
+
+/// A placeholder for [`open_orders`] with rows of the same height.
+#[component]
+async fn open_orders_skeleton() -> Result<impl View> {
+    Ok(view! {
+        table(
+            attrs: attributes! { aria-busy="true" },
+            open_order_columns()
+            table_body(
+                for _ in 0..OPEN_ORDERS {
+                    table_row(
+                        table_cell(skeleton(attrs: attributes! { class="h-4 w-10" }))
+                        table_cell(
+                            <div class="flex items-center gap-3">
+                                avatar(
+                                    size: AvatarSize::Sm,
+                                    skeleton(attrs: attributes! { class="size-full" })
+                                )
+                                skeleton(
+                                    attrs: attributes! { class="h-3.5 w-28 max-w-full" }
+                                )
+                            </div>
+                        )
+                        table_cell(skeleton(attrs: attributes! { class="h-5.5 w-20" }))
+                        table_cell(skeleton(attrs: attributes! { class="h-4 w-20" }))
+                        table_cell(
+                            skeleton(attrs: attributes! { class="ml-auto h-4 w-16" })
+                        )
+                    )
+                }
+            )
+        )
+    })
+}
+
+/// The header row naming the columns of the open orders table.
+#[component]
+async fn open_order_columns() -> Result<impl View> {
+    Ok(view! {
+        table_header(
+            table_row(
+                table_head("Order")
+                // The customer column takes the space the other columns leave.
+                table_head(attrs: attributes! { class="w-full" }, "Customer")
+                table_head("Status")
+                table_head("Placed")
+                table_head(attrs: attributes! { class="text-right" }, "Total")
+            )
+        )
     })
 }
 

@@ -1,7 +1,7 @@
 //! The orders placed in the store, with a search, a status filter, and a choice of
 //! sort order.
 
-mod order_id;
+pub(super) mod order_id;
 
 use jiff::Timestamp;
 use serde::Serialize;
@@ -483,7 +483,7 @@ async fn order_columns() -> Result<impl View> {
 
 /// A badge naming an order's status, with a dot colored by how far along it is.
 #[component]
-async fn status_badge(status: OrderStatus) -> Result<impl View> {
+pub(super) async fn status_badge(status: OrderStatus) -> Result<impl View> {
     let dot: StaticClass = match status {
         OrderStatus::Pending => class!("bg-amber-500"),
         OrderStatus::Paid => class!("bg-sky-500"),
@@ -504,7 +504,7 @@ async fn status_badge(status: OrderStatus) -> Result<impl View> {
 
 /// Describes how long ago `timestamp` was, like `3 hours ago`. Anything older than a
 /// week shows its date instead, like `Oct 12, 2026`.
-fn time_ago(timestamp: Timestamp) -> String {
+pub(super) fn time_ago(timestamp: Timestamp) -> String {
     let minutes = Timestamp::now().duration_since(timestamp).as_mins();
     let (amount, unit) = if minutes < 60 {
         (minutes, "minute")
