@@ -12,7 +12,7 @@ use topcoat::{
         route,
     },
     runtime::link,
-    view::{Attributes, View, attributes, component, element_id, view},
+    view::{Attributes, View, attributes, class, component, element_id, view},
 };
 
 use super::stock_badge;
@@ -83,81 +83,94 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
             <p class="font-mono text-sm text-muted-foreground">(&product.sku)</p>
         </header>
 
-        card(
-            attrs: attributes! { class="max-w-2xl" },
-            card_header(
-                card_title("Details")
-                card_description(
+        // The form takes two thirds of a wide screen, with the buttons that save it
+        // beside it.
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
+            card(
+                attrs: attributes! { class="lg:col-span-2" },
+                card_header(
+                    card_title("Details")
+                    card_description("How the product shows in the store.")
+                )
+                card_content(
+                    <form
+                        id=(&form_id)
+                        method="post"
+                        action=(href!(save, ProductId(product.id)))
+                    >
+                        field_set(
+                            attrs: attributes! { disabled=((!can_edit).then_some("")) },
+                            field_group(
+                                product_field(
+                                    label: "Name",
+                                    name: "name",
+                                    value: &form.name,
+                                    error: errors.name
+                                )
+                                product_field(
+                                    label: "SKU",
+                                    name: "sku",
+                                    value: &form.sku,
+                                    error: errors.sku,
+                                    attrs: attributes! { class="font-mono uppercase" }
+                                )
+                                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                                    product_field(
+                                        label: "Price (USD)",
+                                        name: "price",
+                                        value: &form.price,
+                                        error: errors.price,
+                                        attrs: attributes! { inputmode="decimal" }
+                                    )
+                                    product_field(
+                                        label: "Units in stock",
+                                        name: "stock",
+                                        value: &form.stock,
+                                        error: errors.stock,
+                                        attrs: attributes! { inputmode="numeric" }
+                                    )
+                                </div>
+                            )
+                        )
+                    </form>
+                )
+            )
+
+            card(
+                card_header(
                     if can_edit {
-                        "Changes show in the store as soon as you save them."
+                        card_title("Save changes")
+                        card_description(
+                            "Changes show in the store as soon as you save them."
+                        )
                     } else {
-                        "Viewers can see the product but not change it."
+                        card_title("View only")
+                        card_description(
+                            "Viewers can see the product but not change it."
+                        )
                     }
                 )
-            )
-            card_content(
-                <form
-                    id=(&form_id)
-                    method="post"
-                    action=(href!(save, ProductId(product.id)))
-                >
-                    field_set(
-                        attrs: attributes! { disabled=((!can_edit).then_some("")) },
-                        field_group(
-                            product_field(
-                                label: "Name",
-                                name: "name",
-                                value: &form.name,
-                                error: errors.name,
-                                attrs: attributes! { maxlength="80" }
-                            )
-                            product_field(
-                                label: "SKU",
-                                name: "sku",
-                                value: &form.sku,
-                                error: errors.sku,
-                                attrs: attributes! { maxlength="20" class="font-mono uppercase" }
-                            )
-                            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                                product_field(
-                                    label: "Price (USD)",
-                                    name: "price",
-                                    value: &form.price,
-                                    error: errors.price,
-                                    attrs: attributes! { type="number" min="0.01" step="0.01" inputmode="decimal" }
-                                )
-                                product_field(
-                                    label: "Units in stock",
-                                    name: "stock",
-                                    value: &form.stock,
-                                    error: errors.stock,
-                                    attrs: attributes! { type="number" min="0" step="1" inputmode="numeric" }
-                                )
-                            </div>
+                if can_edit {
+                    card_footer(
+                        attrs: attributes! { class="flex-col gap-3" },
+                        button(
+                            attrs: attributes! { type="submit" form=(&form_id) class="w-full" },
+                            "Save changes"
+                        )
+                        link(
+                            href: href!(super::page),
+                            attrs: attributes! {
+                                class=(class!(
+                                    button_variants(ButtonVariant::Outline, ButtonSize::Md),
+                                    "w-full",
+                                ))
+                            },
+                            "Cancel"
                         )
                     )
-                </form>
+                }
             )
-            if can_edit {
-                card_footer(
-                    attrs: attributes! { class="justify-end gap-2" },
-                    link(
-                        href: href!(super::page),
-                        attrs: attributes! {
-                            class=(button_variants(
-                                ButtonVariant::Outline,
-                                ButtonSize::Md,
-                            ))
-                        },
-                        "Cancel"
-                    )
-                    button(
-                        attrs: attributes! { type="submit" form=(&form_id) },
-                        "Save changes"
-                    )
-                )
-            }
-        )
+        </div>
     })
 }
 
@@ -186,7 +199,6 @@ async fn product_field(
                     name=(name)
                     value=(value)
                     autocomplete="off"
-                    required=""
                     aria-invalid=(error.is_some().then_some("true"))
                     aria-describedby=(error.is_some().then_some(&error_id))
                     (attrs)

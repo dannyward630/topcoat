@@ -20,7 +20,7 @@ use crate::{
         badge::{BadgeVariant, badge},
         button::button,
         card::{card, card_content, card_description, card_footer, card_header, card_title},
-        field::{field, field_group, field_label},
+        field::{field, field_error, field_group, field_label},
         input::input,
     },
     features::{
@@ -30,9 +30,22 @@ use crate::{
     seed::{DEMO_PASSWORD, DEMO_USERS},
 };
 
-/// Tells the sign-in page that the submitted email and password did not match.
+/// Tells the sign-in page that signing in failed.
+///
+/// A field left empty has an error. If both were filled in, they did not match an
+/// account.
 struct SignInFailed {
+    /// The submitted email, to fill in again.
     email: String,
+    email_error: Option<&'static str>,
+    password_error: Option<&'static str>,
+}
+
+impl SignInFailed {
+    /// Whether the email and password were filled in but matched no account.
+    fn no_match(&self) -> bool {
+        self.email_error.is_none() && self.password_error.is_none()
+    }
 }
 
 #[page]
@@ -43,11 +56,15 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
 
     let failed = try_request_context::<SignInFailed>(cx);
     let email = failed.map(|failed| failed.email.as_str());
+    let email_error = failed.and_then(|failed| failed.email_error);
+    let password_error = failed.and_then(|failed| failed.password_error);
 
     // IDs that connect the labels to their inputs and the button to its form.
     let form_id = element_id(cx);
     let email_id = element_id(cx);
+    let email_error_id = element_id(cx);
     let password_id = element_id(cx);
+    let password_error_id = element_id(cx);
 
     Ok(view! {
         if failed.is_some() {
@@ -67,9 +84,16 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                     card_description("Use your staff account to manage the store.")
                 )
                 card_content(
-                    <form id=(&form_id) method="post" action=(href!(submit))>
+                    // The server checks the fields and shows its own errors, so the
+                    // browser does not check the email's format.
+                    <form
+                        id=(&form_id)
+                        method="post"
+                        action=(href!(submit))
+                        novalidate=""
+                    >
                         field_group(
-                            if failed.is_some() {
+                            if failed.is_some_and(SignInFailed::no_match) {
                                 alert(
                                     variant: AlertVariant::Destructive,
                                     icon(data: iconify_icon!("lucide:circle-alert"))
@@ -88,10 +112,19 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                                         name="email"
                                         type="email"
                                         autocomplete="username"
-                                        required=""
                                         value=(email)
+                                        aria-invalid=(email_error.is_some().then_some("true"))
+                                        aria-describedby=(email_error
+                                            .is_some()
+                                            .then_some(&email_error_id))
                                     }
                                 )
+                                if let Some(error) = email_error {
+                                    field_error(
+                                        attrs: attributes! { id=(&email_error_id) },
+                                        (error)
+                                    )
+                                }
                             )
                             field(
                                 field_label(
@@ -104,9 +137,18 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                                         name="password"
                                         type="password"
                                         autocomplete="current-password"
-                                        required=""
+                                        aria-invalid=(password_error.is_some().then_some("true"))
+                                        aria-describedby=(password_error
+                                            .is_some()
+                                            .then_some(&password_error_id))
                                     }
                                 )
+                                if let Some(error) = password_error {
+                                    field_error(
+                                        attrs: attributes! { id=(&password_error_id) },
+                                        (error)
+                                    )
+                                }
                             )
                         )
                     </form>
@@ -165,13 +207,24 @@ struct Credentials {
 #[route(POST)]
 async fn submit(cx: &Cx, Form(credentials): Form<Credentials>) -> Result<SeeOther> {
     let Credentials { email, password } = credentials;
+    let email_error = email.trim().is_empty().then_some("Enter your email.");
+    let password_error = password.is_empty().then_some("Enter your password.");
 
-    let Some(user) = User::authenticate(cx, &email, password).await? else {
+    let user = if email_error.is_none() && password_error.is_none() {
+        User::authenticate(cx, &email, password).await?
+    } else {
+        None
+    };
+    let Some(user) = user else {
         // Render the sign-in page in response to this POST, without a redirect, so
-        // it can show the error next to the submitted email.
+        // it can show the errors next to the submitted email.
         return Err(rewrite(href!(page).resolve(cx), Body::empty())
             .method(Method::GET)
-            .with(SignInFailed { email })
+            .with(SignInFailed {
+                email,
+                email_error,
+                password_error,
+            })
             .into());
     };
 
