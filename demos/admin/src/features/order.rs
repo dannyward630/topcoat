@@ -137,6 +137,12 @@ impl OrderStatus {
         }
     }
 
+    /// Whether moving to this status stops the order, as cancelling or refunding it
+    /// does.
+    pub fn is_reversal(self) -> bool {
+        matches!(self, Self::Cancelled | Self::Refunded)
+    }
+
     /// The statuses an order can move to from this one.
     pub fn next(self) -> &'static [Self] {
         match self {

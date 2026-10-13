@@ -7,7 +7,7 @@ mod orders;
 
 use topcoat::{
     Result,
-    context::Cx,
+    context::{Cx, try_request_context},
     icon::{IconData, icon, iconify::iconify_icon},
     router::{HrefTarget, Slot, href, layout, page, request::uri},
     runtime::{Event, Signal, link, link_attrs, prefetch_mode, signal},
@@ -63,6 +63,10 @@ static NAV: [NavItem; 2] = [
         target: &orders::page,
     },
 ];
+
+/// The current page's own entry in the breadcrumb, for a page below a section's main
+/// page, such as one order. Put it in the request context with a layer.
+pub struct Crumb(pub String);
 
 /// Whether the current page is `path` or a page below it, such as one order in the
 /// list of orders.
@@ -269,14 +273,15 @@ async fn user_menu(cx: &Cx, user: &User) -> Result<impl View> {
 
 /// The trail from the back office to the current page.
 ///
-/// It names the section the page is in, and links to the section from the pages
-/// below it.
+/// It names the section the page is in. The pages below a section link to it and add
+/// their [`Crumb`].
 #[component]
 async fn page_breadcrumb(cx: &Cx) -> Result<impl View> {
     let section = NAV
         .iter()
         .map(|item| (item, href!(item.target)))
         .find(|(_, href)| in_section(cx, &href.resolve(cx)));
+    let crumb = try_request_context::<Crumb>(cx);
 
     Ok(view! {
         breadcrumb(
@@ -294,6 +299,10 @@ async fn page_breadcrumb(cx: &Cx) -> Result<impl View> {
                             )
                         }
                     )
+                    if let Some(Crumb(label)) = crumb {
+                        breadcrumb_separator()
+                        breadcrumb_item(breadcrumb_page((label)))
+                    }
                 }
             )
         )
