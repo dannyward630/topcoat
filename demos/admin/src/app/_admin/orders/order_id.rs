@@ -13,13 +13,16 @@ use topcoat::{
         response::Response,
         route,
     },
-    runtime::{Event, signal},
+    runtime::{Event, link, signal},
     view::{View, attributes, component, element_id, suspense, view},
 };
 
 use super::status_badge;
 use crate::{
-    app::_admin::Crumb,
+    app::_admin::{
+        Crumb,
+        customers::customer_id::{self, CustomerId},
+    },
     components::{
         avatar::{avatar, avatar_fallback},
         button::{ButtonVariant, button},
@@ -242,7 +245,11 @@ async fn customer_details(cx: &Cx, id: u64) -> Result<impl View> {
             <div class="flex items-center gap-3">
                 avatar(avatar_fallback((customer.initials())))
                 <div class="flex min-w-0 flex-col">
-                    <span class="truncate font-medium">(&customer.name)</span>
+                    link(
+                        href: href!(customer_id::page, CustomerId(customer.id)),
+                        attrs: attributes! { class="truncate font-medium hover:underline" },
+                        (&customer.name)
+                    )
                     <a
                         href=(format!("mailto:{}", customer.email))
                         class="truncate text-sm text-muted-foreground hover:underline"

@@ -15,17 +15,13 @@ use topcoat::{
 };
 
 use self::order_id::OrderId;
-use super::page_window;
 use crate::{
     components::{
         avatar::{AvatarSize, avatar, avatar_fallback},
         badge::{BadgeVariant, badge},
         button::{ButtonSize, ButtonVariant, button},
         input::input,
-        pagination::{
-            pagination, pagination_content, pagination_ellipsis, pagination_item, pagination_link,
-            pagination_next, pagination_previous,
-        },
+        list_pagination::{ListPage, list_pagination},
         select::select,
         skeleton::skeleton,
         table::{table, table_body, table_cell, table_head, table_header, table_row},
@@ -194,12 +190,7 @@ async fn order_list(
     .count(cx)
     .await?;
 
-    let pages = count.div_ceil(PER_PAGE).max(1);
-    let current = page_number.get().clamp(1, pages);
-    let first = (current - 1) * PER_PAGE + 1;
-    let last = (current * PER_PAGE).min(count);
-    let previous = current.saturating_sub(1).max(1);
-    let next = (current + 1).min(pages);
+    let shown = ListPage::new(count, PER_PAGE, page_number.get());
 
     Ok(view! {
         if count == 0 {
@@ -232,88 +223,24 @@ async fn order_list(
             </div>
         } else {
             suspense(
-                fallback: view! { order_rows_skeleton(rows: last + 1 - first) },
+                fallback: view! { order_rows_skeleton(rows: shown.items()) },
                 order_rows(
                     filter: OrderSearch { status: selected, text: &text },
                     sort: sort,
-                    number: current
+                    number: shown.number
                 )
             )
 
-            <div class="flex flex-col items-center gap-3 px-6 py-3 sm:flex-row">
-                <p class="shrink-0 text-sm text-muted-foreground tabular-nums">
-                    "Showing "
-                    <span class="font-medium text-foreground">
-                        (first)
-                        "-"
-                        (last)
-                    </span>
-                    " of "
-                    <span class="font-medium text-foreground">(count)</span>
-                    " orders"
-                </p>
-                // Pulled right by the "Next" link's padding, so its chevron lines up
-                // with the totals above.
-                pagination(
-                    attrs: attributes! { class="sm:-mr-3 sm:justify-end" },
-                    pagination_content(
-                        pagination_item(
-                            pagination_previous(
-                                attrs: attributes! {
-                                    href=(href!(page).query(
-                                        &OrdersQuery::new(&text, selected, sort, previous),
-                                    ))
-                                    aria-disabled=((current == 1).then_some("true"))
-                                    class=(class!("pointer-events-none opacity-50" if current == 1))
-                                    @click=$(|e: Event| {
-                                        e.prevent_default();
-                                        page_number.set(previous);
-                                    })
-                                }
-                            )
-                        )
-                        // Narrow screens only have room for the previous and next
-                        // links.
-                        for number in page_window(current, pages) {
-                            pagination_item(
-                                attrs: attributes! { class="hidden sm:block" },
-                                if let Some(number) = number {
-                                    pagination_link(
-                                        active: number == current,
-                                        attrs: attributes! {
-                                            href=(href!(page).query(
-                                                &OrdersQuery::new(&text, selected, sort, number),
-                                            ))
-                                            @click=$(|e: Event| {
-                                                e.prevent_default();
-                                                page_number.set(number);
-                                            })
-                                        },
-                                        (number)
-                                    )
-                                } else {
-                                    pagination_ellipsis()
-                                }
-                            )
-                        }
-                        pagination_item(
-                            pagination_next(
-                                attrs: attributes! {
-                                    href=(href!(page).query(
-                                        &OrdersQuery::new(&text, selected, sort, next),
-                                    ))
-                                    aria-disabled=((current == pages).then_some("true"))
-                                    class=(class!("pointer-events-none opacity-50" if current == pages))
-                                    @click=$(|e: Event| {
-                                        e.prevent_default();
-                                        page_number.set(next);
-                                    })
-                                }
-                            )
-                        )
-                    )
-                )
-            </div>
+            list_pagination(
+                page: shown,
+                noun: "orders",
+                href: |number| {
+                    href!(page)
+                        .query(&OrdersQuery::new(&text, selected, sort, number))
+                        .resolve(cx)
+                },
+                number: &page_number
+            )
         }
     })
 }
@@ -334,12 +261,7 @@ async fn order_rows(
             table_body(
                 for order in &orders {
                     let customer = order.customer.get();
-                    let units = order
-                        .items
-                        .get()
-                        .iter()
-                        .map(|item| item.quantity)
-                        .sum::<u32>();
+                    let units = order.units();
                     // The order number links to the order. The link covers the whole
                     // row, so a click anywhere on the row opens the order.
                     table_row(

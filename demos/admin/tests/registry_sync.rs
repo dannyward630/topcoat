@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use topcoat_ui::Registry;
 
 /// The components the demo writes itself, which the registry does not offer.
-const OWN_COMPONENTS: [&str; 1] = ["chart.rs"];
+const OWN_COMPONENTS: [&str; 2] = ["chart.rs", "list_pagination.rs"];
 
 /// The demo package's root directory.
 fn package_root() -> &'static Path {

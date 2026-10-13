@@ -29,9 +29,11 @@ The first start creates `data.db` next to this file and fills it with demo data.
 | [`src/app/_admin/orders/order_id.rs`](src/app/_admin/orders/order_id.rs) | One order, with buttons that move it to its next status. |
 | [`src/app/_admin/products.rs`](src/app/_admin/products.rs) | The product catalog, with prices and stock levels. |
 | [`src/app/_admin/products/product_id.rs`](src/app/_admin/products/product_id.rs) | One product, with a form that checks its fields before saving. |
+| [`src/app/_admin/customers.rs`](src/app/_admin/customers.rs) | The customers, with how much each one spent. |
+| [`src/app/_admin/customers/customer_id.rs`](src/app/_admin/customers/customer_id.rs) | One customer, with their order history. |
 | [`src/features/`](src/features) | The Toasty models and the rules around them. The dashboard's figures in [`stats.rs`](src/features/stats.rs) are made up from the clock. |
 | [`src/seed.rs`](src/seed.rs) | The demo data written to a fresh database. |
-| [`src/components/`](src/components) | Components installed with `topcoat ui add`, unchanged from the registry, and the demo's own charts. |
+| [`src/components/`](src/components) | Components installed with `topcoat ui add`, unchanged from the registry, and the demo's own charts and list pagination. |
 | [`toasty/`](toasty) | The migrations, applied when the app starts. |
 
 ## Changing a model

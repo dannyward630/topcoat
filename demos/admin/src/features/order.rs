@@ -48,6 +48,23 @@ impl Order {
         Ok(order)
     }
 
+    /// Returns the orders of the customer with `id`, newest first, with their items
+    /// loaded.
+    pub async fn of_customer(cx: &Cx, id: u64) -> Result<Vec<Order>> {
+        latency().await;
+        let orders = Order::filter_by_customer_id(id)
+            .include(Order::fields().items())
+            .order_by(Order::fields().id().desc())
+            .exec(&mut db(cx))
+            .await?;
+        Ok(orders)
+    }
+
+    /// How many units the order's items add up to. Its items must be loaded.
+    pub fn units(&self) -> u32 {
+        self.items.get().iter().map(|item| item.quantity).sum()
+    }
+
     /// Returns the `limit` oldest orders that wait for the store to act: those waiting
     /// for payment or to be shipped. Their customers are loaded.
     pub async fn awaiting_action(cx: &Cx, limit: usize) -> Result<Vec<Order>> {
