@@ -1,25 +1,18 @@
-//! The database connection and its migrations.
-
 use std::time::Duration;
 
 use toasty::{Db, migration::MigrationSet};
 use toasty_cli::{Config, MigrationConfig, ToastyCli};
 use topcoat::context::{Cx, app_context};
 
-/// The SQLite database file, created next to the package manifest when it is first
-/// opened, so the demo finds it from any working directory.
+/// Use the package directory so the database path does not depend on where the app starts.
 const DATABASE_URL: &str = concat!("sqlite:", env!("CARGO_MANIFEST_DIR"), "/data.db");
 
-/// The directory holding the migration history, snapshots, and SQL files.
 const MIGRATIONS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/toasty");
 
-/// How long [`latency`] waits.
 const LATENCY: Duration = Duration::from_millis(500);
 
-/// The migrations in `toasty/`, compiled into the binary.
 const MIGRATIONS: MigrationSet = toasty::embed_migrations!();
 
-/// Opens the database with every model in the application.
 pub async fn connect() -> toasty::Result<Db> {
     Db::builder()
         .models(toasty::models!(crate::*))
@@ -27,40 +20,29 @@ pub async fn connect() -> toasty::Result<Db> {
         .await
 }
 
-/// Applies the migrations the database has not seen yet.
-///
-/// After changing a model, generate a new migration with
-/// `cargo run -p admin -- toasty migration generate`. The next start applies it.
 pub async fn migrate(db: &Db) -> toasty::Result<()> {
     MIGRATIONS.apply(db).await?;
     Ok(())
 }
 
-/// The Toasty command line, which manages migrations in `toasty/`.
 pub fn cli(db: Db) -> ToastyCli {
     let config = Config::new().migration(MigrationConfig::new().path(MIGRATIONS_DIR));
     ToastyCli::with_config(db, config)
 }
 
-/// Returns the database handle from the router's app context. Cloning it is cheap
-/// because it refers to a shared connection pool.
 pub fn db(cx: &Cx) -> Db {
     app_context::<Db>(cx).clone()
 }
 
-/// Waits a moment, like a busy database would before it answers.
-///
-/// The demo database answers instantly, so the pages' loading states would flash by
-/// too fast to see. Call it before a query whose page shows a skeleton while it loads.
+/// Adds a short delay so the demo's loading placeholders stay visible.
+/// Call before queries whose results are shown with a loading state.
 pub async fn latency() {
     tokio::time::sleep(LATENCY).await;
 }
 
-/// Returns a LIKE pattern that matches any text containing `text`.
-///
-/// `%` and `_` are wildcards in a LIKE pattern, so the pattern escapes them with `\` to
-/// match them literally. Pass it to `like_with_escape` with `'\\'` as the escape
-/// character. SQLite's LIKE ignores the case of ASCII letters.
+/// Builds a SQL LIKE pattern for a literal substring search.
+/// Use with `like_with_escape` and a backslash escape character. SQLite LIKE
+/// ignores case for ASCII letters.
 pub fn contains_pattern(text: &str) -> String {
     let mut pattern = String::with_capacity(text.len() + 2);
     pattern.push('%');

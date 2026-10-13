@@ -1,7 +1,4 @@
-//! The dashboard, the first page after signing in, with the store's figures for
-//! today and the orders waiting for the store to act.
-//!
-//! The leading underscore keeps the page at the URL of the group it is in.
+//! The `_dashboard` group puts this page at `/`, under the admin layout.
 
 use std::time::Duration;
 
@@ -35,7 +32,6 @@ use crate::{
     },
 };
 
-/// How often the dashboard checks whether its figures changed.
 const TICK: Duration = Duration::from_secs(1);
 
 #[page]
@@ -71,7 +67,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     })
 }
 
-/// The store's figures for today, which keep updating while the page is open.
 #[shard]
 async fn todays_stats(cx: &Cx) -> Result<impl View> {
     require_user(cx).await?;
@@ -116,26 +111,21 @@ async fn todays_stats(cx: &Cx) -> Result<impl View> {
     })
 }
 
-/// A figure on the dashboard, as its card shows it.
 #[derive(PartialEq, Eq)]
 struct Figure {
-    /// The figure itself, ready to show.
     value: String,
-    /// How much the figure changed since the same time yesterday, in tenths of a
-    /// percent.
+    /// Change from the same time yesterday, in tenths of a percent.
     change: Option<i64>,
-    /// The figure's recent history.
     chart: Chart,
 }
 
-/// A chart of a figure's recent history, oldest first.
+/// Chart values run from oldest to newest.
 #[derive(PartialEq, Eq)]
 enum Chart {
     Bars(Vec<i64>),
     Line(Vec<i64>),
 }
 
-/// Today's revenue, with the revenue of each recent minute.
 fn revenue() -> Figure {
     let sales = SalesStats::now();
     Figure {
@@ -151,7 +141,6 @@ fn revenue() -> Figure {
     }
 }
 
-/// Today's orders, with the orders of each recent minute.
 fn orders() -> Figure {
     let sales = SalesStats::now();
     Figure {
@@ -161,14 +150,12 @@ fn orders() -> Figure {
     }
 }
 
-/// The average of today's orders, with the average of each recent minute.
 fn average_order() -> Figure {
     let sales = SalesStats::now();
     let today = sales.today.average_order();
     Figure {
         value: today.to_string(),
         change: change(today.0, sales.yesterday.average_order().0),
-        // A minute without orders has no average, so it leaves no point on the line.
         chart: Chart::Line(
             sales
                 .by_minute
@@ -180,7 +167,6 @@ fn average_order() -> Figure {
     }
 }
 
-/// The shoppers on the storefront, with the shoppers of each recent second.
 fn visitors() -> Figure {
     let visitors = VisitorStats::now();
     Figure {
@@ -190,10 +176,8 @@ fn visitors() -> Figure {
     }
 }
 
-/// A card showing the figure `figure` returns, under its `label`.
-///
-/// The card checks the figure every [`TICK`] and updates in the browser when it
-/// changed. Its chart is drawn in the `accent` color.
+/// Polls `figure` every [`TICK`] and sends an update when the value changes.
+/// The chart uses `accent` as its color.
 #[component]
 async fn stat_card(
     cx: &Cx,
@@ -225,7 +209,6 @@ async fn stat_card(
     })
 }
 
-/// The value, change, and chart of `figure`, with the chart in the `accent` color.
 #[component]
 async fn figure_details(figure: &Figure, accent: StaticClass) -> Result<impl View> {
     Ok(view! {
@@ -259,10 +242,8 @@ async fn figure_details(figure: &Figure, accent: StaticClass) -> Result<impl Vie
     })
 }
 
-/// How many orders [`open_orders`] shows.
 const OPEN_ORDERS: usize = 6;
 
-/// A table of the oldest orders waiting for payment or shipment.
 #[component]
 async fn open_orders(cx: &Cx) -> Result<impl View> {
     let orders = Order::awaiting_action(cx, OPEN_ORDERS).await?;
@@ -278,8 +259,6 @@ async fn open_orders(cx: &Cx) -> Result<impl View> {
                 table_body(
                     for order in &orders {
                         let customer = order.customer.get();
-                        // The link covers the whole row, so a click anywhere on the row
-                        // opens the order.
                         table_row(
                             attrs: attributes! { class="relative" },
                             table_cell(
@@ -327,7 +306,6 @@ async fn open_orders(cx: &Cx) -> Result<impl View> {
     })
 }
 
-/// A placeholder for [`open_orders`] with rows of the same height.
 #[component]
 async fn open_orders_skeleton() -> Result<impl View> {
     Ok(view! {
@@ -361,14 +339,12 @@ async fn open_orders_skeleton() -> Result<impl View> {
     })
 }
 
-/// The header row naming the columns of the open orders table.
 #[component]
 async fn open_order_columns() -> Result<impl View> {
     Ok(view! {
         table_header(
             table_row(
                 table_head("Order")
-                // The customer column takes the space the other columns leave.
                 table_head(attrs: attributes! { class="w-full" }, "Customer")
                 table_head("Status")
                 table_head("Placed")
@@ -378,18 +354,18 @@ async fn open_order_columns() -> Result<impl View> {
     })
 }
 
-/// How much `now` differs from `before`, in tenths of a percent of `before`.
+/// Percentage change from `before` to `now`, in tenths of a percent.
+/// Returns `None` when `before` is zero.
 fn change(now: i64, before: i64) -> Option<i64> {
     (before != 0).then(|| (now - before) * 1_000 / before)
 }
 
-/// Shows a change in tenths of a percent as a percentage, like `4.2%`.
+/// Formats tenths of a percent, so `42` becomes `4.2%`.
 fn percent(change: i64) -> String {
     let change = change.unsigned_abs();
     format!("{}.{}%", change / 10, change % 10)
 }
 
-/// Shows `number` with its digits grouped in threes, like `12,345`.
 fn grouped(number: i64) -> String {
     let digits = number.unsigned_abs().to_string();
     let mut grouped = String::with_capacity(digits.len() + digits.len() / 3 + 1);

@@ -1,34 +1,25 @@
-//! Checks that the demo's theme and installed components match the registry.
-//! Failure messages explain how to refresh files after registry changes.
-//!
-//! The demo installs only the components it uses. Uninstalled registry
-//! components are allowed, and every other file in the components directory must
-//! either come from the registry or be one of the demo's own components.
+//! Checks installed components and the theme against the registry.
+//! Components listed in `OWN_COMPONENTS` belong to the demo and are excluded.
 
 use std::path::{Path, PathBuf};
 
 use topcoat_ui::Registry;
 
-/// The components the demo writes itself, which the registry does not offer.
 const OWN_COMPONENTS: [&str; 2] = ["chart.rs", "list_pagination.rs"];
 
-/// The demo package's root directory.
 fn package_root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
 }
 
-/// The directory `topcoat ui` installs components into.
 fn components_dir() -> PathBuf {
     package_root().join("src/components")
 }
 
-/// The built-in registry, loaded from its crate in this workspace.
 fn registry() -> Registry {
     let dir = package_root().join("../../crates/topcoat-ui/registry");
     Registry::load(dir).expect("the workspace's built-in registry loads")
 }
 
-/// Reads an installed file, failing with `hint` when it is missing.
 fn read_installed(path: &PathBuf, hint: &str) -> String {
     std::fs::read_to_string(path)
         .unwrap_or_else(|error| panic!("cannot read {}: {error}; {hint}", path.display()))

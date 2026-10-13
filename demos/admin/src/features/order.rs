@@ -1,5 +1,3 @@
-//! Orders, their line items, and how an order moves from placed to delivered.
-
 use std::str::FromStr;
 
 use jiff::Timestamp;
@@ -16,7 +14,6 @@ use super::{
 };
 use crate::db::{contains_pattern, db, latency};
 
-/// A purchase by a customer.
 #[derive(Debug, toasty::Model)]
 #[index(status)]
 pub struct Order {
@@ -35,21 +32,19 @@ pub struct Order {
 
     pub status: OrderStatus,
 
-    /// The sum of the line items, kept on the order so lists do not load the items.
+    /// Stored total so list pages do not need to fetch line items to calculate it.
     pub total: Money,
 
     pub placed_at: Timestamp,
 }
 
 impl Order {
-    /// Returns the order with `id`, or `None` if there is none.
     pub async fn find(cx: &Cx, id: u64) -> Result<Option<Order>> {
         let order = Order::filter_by_id(id).first().exec(&mut db(cx)).await?;
         Ok(order)
     }
 
-    /// Returns the orders of the customer with `id`, newest first, with their items
-    /// loaded.
+    /// Loads a customer's orders and their items, newest first.
     pub async fn of_customer(cx: &Cx, id: u64) -> Result<Vec<Order>> {
         latency().await;
         let orders = Order::filter_by_customer_id(id)
@@ -60,13 +55,12 @@ impl Order {
         Ok(orders)
     }
 
-    /// How many units the order's items add up to. Its items must be loaded.
+    /// Counts units across all line items. The items must already be loaded.
     pub fn units(&self) -> u32 {
         self.items.get().iter().map(|item| item.quantity).sum()
     }
 
-    /// Returns the `limit` oldest orders that wait for the store to act: those waiting
-    /// for payment or to be shipped. Their customers are loaded.
+    /// Loads up to `limit` pending or paid orders, oldest first, with their customers.
     pub async fn awaiting_action(cx: &Cx, limit: usize) -> Result<Vec<Order>> {
         latency().await;
         let status = Order::fields().status();
@@ -83,9 +77,8 @@ impl Order {
         Ok(orders)
     }
 
-    /// Moves the order to `status`, if the current status allows it.
-    ///
-    /// Returns `false` and leaves the order unchanged if it does not.
+    /// Changes the status if the transition is allowed. Returns `false` without
+    /// changing the order for an invalid transition.
     pub async fn advance(&mut self, cx: &Cx, status: OrderStatus) -> Result<bool> {
         if !self.status.next().contains(&status) {
             return Ok(false);
@@ -95,26 +88,20 @@ impl Order {
     }
 }
 
-/// Where an order is on its way to the customer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, toasty::Embed)]
 #[serde(rename_all = "lowercase")]
 pub enum OrderStatus {
-    /// Placed, waiting for payment.
+    /// Awaiting payment.
     Pending,
-    /// Paid, waiting to be packed and shipped.
+    /// Payment received; awaiting shipment.
     Paid,
-    /// Handed to the carrier.
     Shipped,
-    /// Received by the customer.
     Delivered,
-    /// Stopped before it shipped.
     Cancelled,
-    /// Paid for and then refunded.
     Refunded,
 }
 
 impl OrderStatus {
-    /// Every status, in the order an order moves through them.
     pub const ALL: [Self; 6] = [
         Self::Pending,
         Self::Paid,
@@ -124,7 +111,6 @@ impl OrderStatus {
         Self::Refunded,
     ];
 
-    /// The status's name, for display.
     pub fn label(self) -> &'static str {
         match self {
             Self::Pending => "Pending",
@@ -136,7 +122,6 @@ impl OrderStatus {
         }
     }
 
-    /// The status's name in URLs and forms. [`FromStr`] reads it back.
     pub fn slug(self) -> &'static str {
         match self {
             Self::Pending => "pending",
@@ -148,7 +133,6 @@ impl OrderStatus {
         }
     }
 
-    /// What moving an order to this status is called, for buttons.
     pub fn action(self) -> &'static str {
         match self {
             Self::Pending => "Mark as pending",
@@ -160,13 +144,10 @@ impl OrderStatus {
         }
     }
 
-    /// Whether moving to this status stops the order, as cancelling or refunding it
-    /// does.
     pub fn is_reversal(self) -> bool {
         matches!(self, Self::Cancelled | Self::Refunded)
     }
 
-    /// The statuses an order can move to from this one.
     pub fn next(self) -> &'static [Self] {
         match self {
             Self::Pending => &[Self::Paid, Self::Cancelled],
@@ -188,11 +169,9 @@ impl FromStr for OrderStatus {
     }
 }
 
-/// The error for a string that names no [`OrderStatus`].
 #[derive(Debug)]
 pub struct UnknownStatus;
 
-/// One product in an order, with the quantity and the price paid for it.
 #[derive(Debug, toasty::Model)]
 pub struct OrderItem {
     #[key]
@@ -213,13 +192,12 @@ pub struct OrderItem {
 
     pub quantity: u32,
 
-    /// The price of one unit when the order was placed. It does not follow later
-    /// changes to the product's price.
+    /// Unit price at purchase time. Later catalog price changes do not affect it.
     pub unit_price: Money,
 }
 
 impl OrderItem {
-    /// Returns the items of the order with `order_id`, with their products loaded.
+    /// Loads an order's line items and their products.
     pub async fn of_order(cx: &Cx, order_id: u64) -> Result<Vec<OrderItem>> {
         latency().await;
         let items = OrderItem::filter_by_order_id(order_id)
@@ -230,29 +208,22 @@ impl OrderItem {
         Ok(items)
     }
 
-    /// The price of all units on this line.
     pub fn subtotal(&self) -> Money {
         Money(self.unit_price.0 * i64::from(self.quantity))
     }
 }
 
-/// The order to list orders in.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum OrderSort {
-    /// The most recently placed orders first.
     #[default]
     Newest,
-    /// The earliest placed orders first.
     Oldest,
-    /// The most expensive orders first.
     HighestTotal,
-    /// The least expensive orders first.
     LowestTotal,
 }
 
 impl OrderSort {
-    /// Every sort order, in the order to offer them.
     pub const ALL: [Self; 4] = [
         Self::Newest,
         Self::Oldest,
@@ -260,7 +231,6 @@ impl OrderSort {
         Self::LowestTotal,
     ];
 
-    /// The sort order's name, for display.
     pub fn label(self) -> &'static str {
         match self {
             Self::Newest => "Newest first",
@@ -270,7 +240,6 @@ impl OrderSort {
         }
     }
 
-    /// The sort order's name in URLs and forms. [`FromStr`] reads it back.
     pub fn slug(self) -> &'static str {
         match self {
             Self::Newest => "newest",
@@ -292,23 +261,20 @@ impl FromStr for OrderSort {
     }
 }
 
-/// The error for a string that names no [`OrderSort`].
 #[derive(Debug)]
 pub struct UnknownSort;
 
-/// Which orders to list.
 #[derive(Debug, Default)]
 pub struct OrderSearch<'a> {
-    /// Only orders with this status, or all orders if `None`.
     pub status: Option<OrderStatus>,
-    /// Text to find in the customer's name or email, or the order number. Empty text
-    /// matches every order.
+    /// Searches customer names, email addresses, and order numbers.
+    /// Blank text matches all orders.
     pub text: &'a str,
 }
 
 impl OrderSearch<'_> {
-    /// Returns the matching orders on page `page` of pages with `per_page` orders each,
-    /// sorted by `sort`, with their customers and items loaded. The first page is 1.
+    /// Loads one page of matching orders, including customers and line items.
+    /// Page numbers start at 1.
     pub async fn page(
         &self,
         cx: &Cx,
@@ -323,7 +289,7 @@ impl OrderSearch<'_> {
             .include(Order::fields().customer())
             .include(Order::fields().items())
             .order_by(match sort {
-                // IDs follow the order the orders were placed in.
+                // Seeded orders have IDs in date order.
                 OrderSort::Newest => Order::fields().id().desc(),
                 OrderSort::Oldest => Order::fields().id().asc(),
                 OrderSort::HighestTotal => Order::fields().total().desc(),
@@ -336,7 +302,6 @@ impl OrderSearch<'_> {
         Ok(orders)
     }
 
-    /// Returns how many orders match.
     pub async fn count(&self, cx: &Cx) -> Result<usize> {
         let count = self.query().count().exec(&mut db(cx)).await?;
         Ok(usize::try_from(count).unwrap_or(usize::MAX))

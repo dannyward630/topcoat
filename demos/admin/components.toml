@@ -5,7 +5,7 @@ components_dir = "src/components"
 [theme]
 name = "neutral"
 registry = "topcoat"
-hash = "sha256:36961244dab6cac17e4c019d22c0bdddb763b87092a54130b547f5cb7dd6c17c"
+hash = "sha256:5e370e648fef95d78c8b048d99be7f7d79fd82132f8c9cc1ce854d3b73024137"
 file = "styles.css"
 
 [registries.topcoat.components.avatar]
@@ -25,7 +25,7 @@ hash = "sha256:1b40f815a96997b28f35b8f385f5849d86ca53ba47fb752a3e795bfc24c3a55d"
 file = "src/components/button.rs"
 
 [registries.topcoat.components.card]
-hash = "sha256:9fb045e11ce7aaf6908530d9bfb838d7521922bfb255f972bb7ec4b7f9bb064c"
+hash = "sha256:9c753a11ad86ad31db0c1a06584d9b1814ee1326c1e862295d508f0a7baee95d"
 file = "src/components/card.rs"
 
 [registries.topcoat.components.dialog]
@@ -77,7 +77,7 @@ hash = "sha256:3b6d99ca9aef02697ce1142903bd49062ef9f2bd4ecbb1e6b82be0ea6554d1a5"
 file = "src/components/skeleton.rs"
 
 [registries.topcoat.components.table]
-hash = "sha256:08c96bff8e38ddc9398ab231bd326bcf10901bd866b865c3190a57f58996911d"
+hash = "sha256:1bb770c77662b17b71a1a2c574917b177dcaab9e5d73dae274d59405e9f02ae4"
 file = "src/components/table.rs"
 
 [registries.topcoat.components.tabs]

@@ -5,11 +5,9 @@ use topcoat::{
 
 /// A table inside a horizontally scrollable container.
 ///
-/// The first and last columns have extra padding on their outer side, so their content
-/// lines up with the edges of a surrounding panel, such as a card. A line separates the
-/// table from the elements before and after it. When the table is the first or last
-/// child of its parent, it has no line on that side, so it does not double the
-/// parent's own border.
+/// Extra padding on the left and right aligns the cells with a card's content.
+/// Top and bottom borders separate the table from neighboring elements. A border
+/// is omitted when the table is the first or last child on that side.
 ///
 /// Pass table sections as children. `attrs` are forwarded to the `<table>`, with extra
 /// classes added to its classes.
@@ -39,9 +37,7 @@ pub async fn table(
 ) -> Result<impl View> {
     Ok(view! {
         <div data-slot="table" class="w-full overflow-x-auto">
-            // The lines go on the `<table>`, which draws them around its rows and
-            // leaves the caption outside. They depend on the container's place among
-            // its siblings.
+            // Put borders on the table so the caption stays outside them.
             <table
                 class=(class!(
                     "w-full caption-bottom border-collapse border-border text-sm",

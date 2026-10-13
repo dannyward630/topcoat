@@ -1,8 +1,5 @@
-//! Signing in and out, finding the signed-in user, and the guard that sends
-//! signed-out visitors to the sign-in page.
-//!
-//! Topcoat issues the session token and carries it in a cookie. The session records
-//! live in the database, keyed by the token's hash.
+//! Topcoat keeps the session token in a cookie. The database stores its hash,
+//! the user ID, and the expiry time.
 
 use jiff::Timestamp;
 use topcoat::{
@@ -18,10 +15,9 @@ use topcoat::{
 use super::user::User;
 use crate::{app::login, db::db};
 
-/// A signed-in browser, stored under the hash of its session token.
 #[derive(Debug, toasty::Model)]
 pub struct Session {
-    /// The SHA-256 hash of the session token. The token itself is never stored.
+    /// Store only the token's SHA-256 hash, never the token itself.
     #[key]
     token_hash: Vec<u8>,
 
@@ -34,7 +30,6 @@ pub struct Session {
     expires_at: Timestamp,
 }
 
-/// Starts a session for `user`, replacing any session the browser had.
 pub async fn sign_in(cx: &Cx, user: &User) -> Result<()> {
     let session = session::start(cx).await?;
     let expires_at = Timestamp::try_from(session.expires_at).map_err(internal_server_error)?;
@@ -50,7 +45,6 @@ pub async fn sign_in(cx: &Cx, user: &User) -> Result<()> {
     Ok(())
 }
 
-/// Ends the browser's session, if it has one.
 pub async fn sign_out(cx: &Cx) -> Result<()> {
     if let Some(token_hash) = session::stop(cx).await? {
         Session::filter_by_token_hash(token_hash.to_vec())
@@ -61,10 +55,8 @@ pub async fn sign_out(cx: &Cx) -> Result<()> {
     Ok(())
 }
 
-/// The user signed in to this browser, or `None` without a valid session.
-///
-/// The result is memoized, so layouts, pages, and guards can all call it while the
-/// database is queried once per request.
+/// Returns the signed-in user, or `None` if the session is missing or expired.
+/// The result is cached for the request.
 #[memoize(as_ref)]
 pub async fn current_user(cx: &Cx) -> Result<Option<User>> {
     let Some(token_hash) = session::token_hash(cx).await? else {
@@ -85,10 +77,9 @@ pub async fn current_user(cx: &Cx) -> Result<Option<User>> {
     Ok(Some(user))
 }
 
-/// Returns the signed-in user, or redirects to the sign-in page.
-///
-/// Call it in every page, shard, and procedure that needs a user. It is cheap to call
-/// repeatedly because [`current_user`] is memoized.
+/// Requires a valid session and redirects to sign-in if there is none.
+/// Call this from protected pages, shards, and procedures. Repeated calls share
+/// the cached result from [`current_user`].
 pub async fn require_user(cx: &Cx) -> Result<&User> {
     let user = current_user(cx).await?;
     Ok(user

@@ -1,5 +1,3 @@
-//! The products the store sells, and the prices they sell for.
-
 use std::{fmt, str::FromStr};
 
 use serde::{Deserialize, Serialize};
@@ -15,16 +13,14 @@ use topcoat::{
 
 use crate::db::{contains_pattern, db, latency};
 
-/// How many units a product has left when its stock counts as low.
 const LOW_STOCK: u32 = 10;
 
-/// The longest name a product can have, in characters.
+/// Maximum name length in characters.
 const MAX_NAME: usize = 80;
 
-/// The longest SKU a product can have, in characters.
+/// Maximum SKU length in characters.
 const MAX_SKU: usize = 20;
 
-/// A product in the store's catalog.
 #[derive(Debug, toasty::Model)]
 pub struct Product {
     #[key]
@@ -33,24 +29,20 @@ pub struct Product {
 
     pub name: String,
 
-    /// The stock keeping unit, a short code that identifies the product.
     #[unique]
     pub sku: String,
 
     pub price: Money,
 
-    /// How many units are in the warehouse.
     pub stock: u32,
 }
 
 impl Product {
-    /// Returns the product with `id`, or `None` if there is none.
     pub async fn find(cx: &Cx, id: u64) -> Result<Option<Product>> {
         let product = Product::filter_by_id(id).first().exec(&mut db(cx)).await?;
         Ok(product)
     }
 
-    /// How much of the product is left.
     pub fn stock_level(&self) -> StockLevel {
         match self.stock {
             0 => StockLevel::Out,
@@ -59,17 +51,14 @@ impl Product {
         }
     }
 
-    /// Changes the product to the details in `form`.
-    ///
-    /// If a field is invalid, the product stays unchanged and the returned errors say
-    /// what is wrong with each field.
+    /// Validates and saves the submitted fields. Invalid fields return errors
+    /// without changing the product.
     pub async fn edit(&mut self, cx: &Cx, form: &ProductForm) -> Result<Result<(), ProductErrors>> {
         let name = form.name();
         let mut sku = form.sku();
         let price = form.price();
         let stock = form.stock();
 
-        // A SKU can be valid on its own and still belong to another product.
         if let Ok(code) = &sku
             && let Some(other) = Product::filter_by_sku(code)
                 .first()
@@ -101,23 +90,17 @@ impl Product {
     }
 }
 
-/// How much of a product is left in the warehouse.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum StockLevel {
-    /// Enough units for now.
     InStock,
-    /// A few units left, time to order more.
     Low,
-    /// No units left.
     Out,
 }
 
 impl StockLevel {
-    /// Every stock level, from the most units to none.
     pub const ALL: [Self; 3] = [Self::InStock, Self::Low, Self::Out];
 
-    /// The level's name, for display.
     pub fn label(self) -> &'static str {
         match self {
             Self::InStock => "In stock",
@@ -126,7 +109,6 @@ impl StockLevel {
         }
     }
 
-    /// The level's name in URLs and forms. [`FromStr`] reads it back.
     pub fn slug(self) -> &'static str {
         match self {
             Self::InStock => "in-stock",
@@ -135,7 +117,6 @@ impl StockLevel {
         }
     }
 
-    /// Matches the products at this level.
     fn filter(self) -> Expr<bool> {
         let stock = Product::fields().stock();
         match self {
@@ -157,27 +138,20 @@ impl FromStr for StockLevel {
     }
 }
 
-/// The error for a string that names no [`StockLevel`].
 #[derive(Debug)]
 pub struct UnknownStockLevel;
 
-/// The order to list products in.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProductSort {
-    /// Alphabetically by name.
     #[default]
     Name,
-    /// The most expensive products first.
     HighestPrice,
-    /// The least expensive products first.
     LowestPrice,
-    /// The products with the fewest units left first.
     LowestStock,
 }
 
 impl ProductSort {
-    /// Every sort order, in the order to offer them.
     pub const ALL: [Self; 4] = [
         Self::Name,
         Self::HighestPrice,
@@ -185,7 +159,6 @@ impl ProductSort {
         Self::LowestStock,
     ];
 
-    /// The sort order's name, for display.
     pub fn label(self) -> &'static str {
         match self {
             Self::Name => "Name",
@@ -195,7 +168,6 @@ impl ProductSort {
         }
     }
 
-    /// The sort order's name in URLs and forms. [`FromStr`] reads it back.
     pub fn slug(self) -> &'static str {
         match self {
             Self::Name => "name",
@@ -217,22 +189,18 @@ impl FromStr for ProductSort {
     }
 }
 
-/// The error for a string that names no [`ProductSort`].
 #[derive(Debug)]
 pub struct UnknownSort;
 
-/// Which products to list.
 #[derive(Debug, Default)]
 pub struct ProductSearch<'a> {
-    /// Only products at this stock level, or all products if `None`.
     pub stock: Option<StockLevel>,
-    /// Text to find in the product's name or SKU. Empty text matches every product.
+    /// Searches names and SKUs. Blank text matches all products.
     pub text: &'a str,
 }
 
 impl ProductSearch<'_> {
-    /// Returns the matching products on page `page` of pages with `per_page` products
-    /// each, sorted by `sort`. The first page is 1.
+    /// Loads one page of matching products. Page numbers start at 1.
     pub async fn page(
         &self,
         cx: &Cx,
@@ -258,7 +226,6 @@ impl ProductSearch<'_> {
         Ok(products)
     }
 
-    /// Returns how many products match.
     pub async fn count(&self, cx: &Cx) -> Result<usize> {
         let count = self.query().count().exec(&mut db(cx)).await?;
         Ok(usize::try_from(count).unwrap_or(usize::MAX))
@@ -283,7 +250,7 @@ impl ProductSearch<'_> {
     }
 }
 
-/// A product's details as typed into a form, before they are checked.
+/// Unvalidated form values. Keep them as strings so invalid input can be shown again.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ProductForm {
     pub name: String,
@@ -293,7 +260,6 @@ pub struct ProductForm {
 }
 
 impl ProductForm {
-    /// Returns the form filled in with the current details of `product`.
     pub fn of(product: &Product) -> Self {
         Self {
             name: product.name.clone(),
@@ -303,7 +269,6 @@ impl ProductForm {
         }
     }
 
-    /// The name without surrounding spaces.
     fn name(&self) -> Result<String, &'static str> {
         let name = self.name.trim();
         if name.is_empty() {
@@ -315,7 +280,6 @@ impl ProductForm {
         }
     }
 
-    /// The SKU in capital letters, without surrounding spaces.
     fn sku(&self) -> Result<String, &'static str> {
         let sku = self.sku.trim();
         if sku.is_empty() {
@@ -355,8 +319,7 @@ impl ProductForm {
     }
 }
 
-/// What is wrong with each field of a [`ProductForm`]. A field without a problem is
-/// `None`.
+/// Validation errors for [`ProductForm`]. `None` means the field passed validation.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ProductErrors {
     pub name: Option<&'static str>,
@@ -365,16 +328,13 @@ pub struct ProductErrors {
     pub stock: Option<&'static str>,
 }
 
-/// An amount in US dollars, stored as a whole number of cents.
-///
-/// Render it in a view with `(amount)` to show it like `$1,234.50`. As a model field,
-/// it is stored as a single integer column of cents.
+/// US dollars stored as integer cents. In views, `(amount)` renders a value
+/// such as `$1,234.50`. Toasty stores it in one integer column.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, toasty::Embed)]
 pub struct Money(pub i64);
 
 impl Money {
-    /// The amount as a plain number of dollars, like `1234.50`, the way number inputs
-    /// show it.
+    /// Formats dollars without a currency symbol or commas, such as `1234.50`.
     pub fn decimal(self) -> String {
         let sign = if self.0 < 0 { "-" } else { "" };
         let cents = self.0.unsigned_abs();
@@ -390,7 +350,6 @@ impl fmt::Display for Money {
 
         f.write_str(sign)?;
         f.write_str("$")?;
-        // Group the dollars in threes, counting from the right.
         for (index, digit) in dollars.chars().enumerate() {
             if index > 0 && (dollars.len() - index).is_multiple_of(3) {
                 f.write_str(",")?;
@@ -404,8 +363,8 @@ impl fmt::Display for Money {
 impl FromStr for Money {
     type Err = InvalidMoney;
 
-    /// Reads an amount the way [`Display`](fmt::Display) shows it, like `$1,234.50`.
-    /// The dollar sign, the commas, and the cents are optional, so `1234.5` reads too.
+    /// Parses dollar amounts such as `$1,234.50` or `1234.5`.
+    /// The dollar sign, commas, and fractional part are optional.
     fn from_str(text: &str) -> Result<Self, Self::Err> {
         let (negative, text) = match text.strip_prefix('-') {
             Some(text) => (true, text),
@@ -433,7 +392,6 @@ impl FromStr for Money {
         for char in dollars.chars().filter(|&char| char != ',') {
             push(char)?;
         }
-        // Missing cents count as zero, so `24.5` is 24 dollars and 50 cents.
         let mut cents = cents.chars();
         for _ in 0..2 {
             push(cents.next().unwrap_or('0'))?;
@@ -455,7 +413,6 @@ impl std::iter::Sum for Money {
     }
 }
 
-/// The error for text that is not an amount of [`Money`].
 #[derive(Debug, PartialEq, Eq)]
 pub struct InvalidMoney;
 

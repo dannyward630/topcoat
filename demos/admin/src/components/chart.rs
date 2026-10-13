@@ -4,23 +4,12 @@ use topcoat::{
     view::{Attributes, View, class, component, element_id, view},
 };
 
-/// The horizontal distance between two points of a chart, in the chart's own units.
+/// Horizontal spacing between chart values, in SVG units.
 const STEP: usize = 10;
 
-/// A line chart of `values`, oldest first, with the area under the line shaded.
-///
-/// The chart stretches to fill its container and draws in the current text color, so
-/// size and color it through its parent. The line spans the values from the lowest to
-/// the highest. `attrs` are forwarded to the `<svg>`, with extra classes added to its
-/// classes.
-///
-/// ```ignore
-/// view! {
-///     <div class="h-16 text-sky-500">
-///         line_chart(values: &[3, 5, 4, 8])
-///     </div>
-/// }
-/// ```
+/// Draws a filled line chart with values ordered from oldest to newest.
+/// The vertical scale runs from the smallest value to the largest. The chart
+/// fills its parent and uses its text color. Extra `attrs` go on the SVG.
 #[component]
 pub async fn line_chart(
     cx: &Cx,
@@ -35,7 +24,7 @@ pub async fn line_chart(
         .iter()
         .enumerate()
         .map(|(index, &value)| {
-            // The line keeps clear of the top edge, so its stroke is not cut off.
+            // Leave room for the stroke so the SVG does not clip it.
             let height = if max == min {
                 40
             } else {
@@ -76,20 +65,9 @@ pub async fn line_chart(
     })
 }
 
-/// A bar chart of `values`, oldest first, with bars rising from zero. The newest bar
-/// stands out from the others.
-///
-/// The chart stretches to fill its container and draws in the current text color, so
-/// size and color it through its parent. `attrs` are forwarded to the `<svg>`, with
-/// extra classes added to its classes.
-///
-/// ```ignore
-/// view! {
-///     <div class="h-16 text-emerald-500">
-///         bar_chart(values: &[3, 5, 4, 8])
-///     </div>
-/// }
-/// ```
+/// Draws bars from zero, ordered from oldest to newest, with the last bar
+/// highlighted. The chart fills its parent and uses its text color.
+/// Extra `attrs` go on the SVG.
 #[component]
 pub async fn bar_chart(values: &[i64], #[default] mut attrs: Attributes) -> Result<impl View> {
     let max = values.iter().copied().max().unwrap_or(0).max(1);

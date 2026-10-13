@@ -1,5 +1,3 @@
-//! Staff accounts and their passwords.
-
 use argon2::{
     Argon2,
     password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash},
@@ -8,7 +6,7 @@ use topcoat::{Result, context::Cx, router::error::internal_server_error};
 
 use crate::db::db;
 
-/// A member of staff who can sign in to the back office.
+/// A staff account that can sign in to the admin app.
 #[derive(Debug, toasty::Model)]
 pub struct User {
     #[key]
@@ -20,15 +18,14 @@ pub struct User {
     #[unique]
     pub email: String,
 
-    /// The Argon2 hash of the password, as a PHC string.
+    /// Password hash in Argon2 PHC format.
     password_hash: String,
 
     pub role: Role,
 }
 
 impl User {
-    /// Returns the user with this email address and password, or `None` if either
-    /// does not match.
+    /// Checks the credentials and returns the user, or `None` if they do not match.
     pub async fn authenticate(cx: &Cx, email: &str, password: String) -> Result<Option<User>> {
         let user = User::filter_by_email(email.trim().to_lowercase())
             .first()
@@ -48,7 +45,6 @@ impl User {
         Ok(matches.then_some(user))
     }
 
-    /// The initials of the user's name, for avatars.
     pub fn initials(&self) -> String {
         self.name
             .split_whitespace()
@@ -58,19 +54,14 @@ impl User {
     }
 }
 
-/// What a user may do in the back office.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, toasty::Embed)]
 pub enum Role {
-    /// Manages the store and its staff.
     Admin,
-    /// Handles orders, products, and customers.
     Staff,
-    /// Reads everything but changes nothing.
     Viewer,
 }
 
 impl Role {
-    /// The role's name, for display.
     pub fn label(self) -> &'static str {
         match self {
             Self::Admin => "Admin",
@@ -79,16 +70,13 @@ impl Role {
         }
     }
 
-    /// Whether the role may change store data, such as an order's status.
     pub fn can_edit(self) -> bool {
         matches!(self, Self::Admin | Self::Staff)
     }
 }
 
-/// Hashes a password with a random salt.
-///
-/// Hashing is deliberately slow. Call it outside the async runtime, for example
-/// with [`tokio::task::spawn_blocking`].
+/// Creates a salted Argon2 password hash. This is CPU-intensive; use
+/// [`tokio::task::spawn_blocking`] when calling it from async code.
 pub fn hash_password(password: &str) -> String {
     Argon2::default()
         .hash_password(password.as_bytes())
@@ -96,7 +84,6 @@ pub fn hash_password(password: &str) -> String {
         .to_string()
 }
 
-/// Checks a password against a hash from [`hash_password`].
 fn verify_password(password: &str, password_hash: &str) -> bool {
     PasswordHash::new(password_hash).is_ok_and(|hash| {
         Argon2::default()

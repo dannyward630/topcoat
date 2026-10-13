@@ -1,5 +1,3 @@
-//! The store's customers, with a search and a choice of sort order.
-
 pub(super) mod customer_id;
 
 use serde::Serialize;
@@ -29,13 +27,10 @@ use crate::{
     },
 };
 
-/// How many customers a page of the list shows.
 const PER_PAGE: usize = 20;
 
-/// The filters the list starts with.
-///
-/// The page links point here, so they also work when opened in a new tab. A plain
-/// click changes the page in place without changing the URL.
+/// URL parameters for the initial list. Pagination clicks update a signal without
+/// changing the URL; opening a page link in a new tab uses these parameters.
 #[query_params(error = redirect("?"))]
 #[derive(Serialize)]
 pub struct CustomersQuery {
@@ -45,8 +40,6 @@ pub struct CustomersQuery {
 }
 
 impl CustomersQuery {
-    /// The query for page `number` of the customers that match `text`, sorted by
-    /// `sort`.
     fn new(text: &str, sort: CustomerSort, number: usize) -> Self {
         Self {
             q: (!text.is_empty()).then(|| text.to_owned()),
@@ -62,7 +55,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     let query = query_params::<CustomersQuery>(cx)?;
     let initial_sort = query.sort.unwrap_or_default().slug();
 
-    // The filters live in the browser. Changing one re-renders only the list.
     let search = signal(cx, || query.q.clone().unwrap_or_default());
     let sort = signal(cx, || initial_sort.to_owned());
     let page_number = signal(cx, || query.page.unwrap_or(1));
@@ -131,10 +123,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     })
 }
 
-/// One page of the customers that match the search, with links to the other pages.
-///
-/// The customers load after the rest of the list, with a skeleton in their place
-/// until they arrive.
 #[shard]
 async fn customer_list(
     cx: &Cx,
@@ -142,12 +130,10 @@ async fn customer_list(
     sort: Signal<String>,
     page_number: Signal<usize>,
 ) -> Result<impl View> {
-    // The browser can request a shard directly, so it checks the user itself.
+    // Shards can be requested without the page layout, so they need their own sign-in check.
     require_user(cx).await?;
 
     let text = search.get();
-    // An unknown sort order comes from a tampered request. Fall back to the default
-    // order then.
     let sort = sort.get().parse::<CustomerSort>().unwrap_or_default();
     let count = CustomerSearch { text: &text }.count(cx).await?;
     let shown = ListPage::new(count, PER_PAGE, page_number.get());
@@ -204,7 +190,6 @@ async fn customer_list(
     })
 }
 
-/// The table of customers on page `number` of the list, sorted by `sort`.
 #[component]
 async fn customer_rows(
     cx: &Cx,
@@ -220,8 +205,6 @@ async fn customer_rows(
             table_body(
                 for customer in &customers {
                     let spending = Spending::of(customer.orders.get());
-                    // The name links to the customer. The link covers the whole row, so
-                    // a click anywhere on the row opens the customer.
                     table_row(
                         attrs: attributes! { class="relative" },
                         table_cell(
@@ -230,8 +213,6 @@ async fn customer_rows(
                                     size: AvatarSize::Sm,
                                     avatar_fallback((customer.initials()))
                                 )
-                                // Long names and addresses shorten with an ellipsis
-                                // instead of widening the table.
                                 <div class="flex max-w-64 min-w-0 flex-col">
                                     link(
                                         href: href!(customer_id::page, CustomerId(customer.id)),
@@ -271,7 +252,6 @@ async fn customer_rows(
     })
 }
 
-/// A placeholder for [`customer_rows`] with `rows` rows of the same height.
 #[component]
 async fn customer_rows_skeleton(rows: usize) -> Result<impl View> {
     Ok(view! {
@@ -316,13 +296,11 @@ async fn customer_rows_skeleton(rows: usize) -> Result<impl View> {
     })
 }
 
-/// The header row naming the columns of the customer table.
 #[component]
 async fn customer_columns() -> Result<impl View> {
     Ok(view! {
         table_header(
             table_row(
-                // The customer column takes the space the other columns leave.
                 table_head(attrs: attributes! { class="w-full" }, "Customer")
                 table_head("City")
                 table_head("Joined")

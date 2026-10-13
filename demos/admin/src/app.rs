@@ -18,26 +18,19 @@ use topcoat::{
 
 use crate::features::theme::theme;
 
-/// The Geist font family, loaded from Fontsource and served from the asset bundle.
 const GEIST: Font =
     fontsource_font!(GEIST, weight: [400, 500, 600, 700], style: Normal, host: Asset);
 
-/// Builds the application's router.
 pub fn router() -> RouterBuilder {
-    // The pages and layouts of this module and its submodules, with paths derived
-    // from the module tree.
     module_router!()
-        // The runtime's procedures and shards, which have no place in the module tree.
         .discover()
         .assets(AssetBundle::load().unwrap())
-        // Sessions carry their token in a cookie.
         .cookies()
         .sessions(SessionConfig::default())
-        // Lets the browser runtime rerun pages; register it after other layers.
+        // Register the runtime after the application layers so rerenders use them too.
         .runtime()
 }
 
-/// The HTML document around every page.
 #[layout]
 async fn root(cx: &Cx, slot: Slot<'_>) -> Result<impl View> {
     let theme = theme(cx);

@@ -1,4 +1,4 @@
-//! The color theme, remembered per browser in a cookie.
+//! Stores the browser's light or dark theme preference in a cookie.
 
 use serde::{Deserialize, Serialize};
 use topcoat::{
@@ -7,7 +7,6 @@ use topcoat::{
     cookie::{Cookies, SameSite, UnparsedCookieStore, cookie_store, cookies, time::Duration},
 };
 
-/// The color theme pages render in.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Theme {
@@ -17,7 +16,6 @@ pub enum Theme {
 }
 
 impl Theme {
-    /// The class that selects the theme's colors, set on an ancestor of the page.
     pub fn class(self) -> Option<&'static str> {
         match self {
             Self::Light => None,
@@ -25,7 +23,7 @@ impl Theme {
         }
     }
 
-    /// The `color-scheme` style, so native controls and scrollbars match the theme.
+    /// Sets the native control and scrollbar colors to match the theme.
     pub fn color_scheme(self) -> &'static str {
         match self {
             Self::Light => "color-scheme: light",
@@ -33,7 +31,6 @@ impl Theme {
         }
     }
 
-    /// The other theme.
     #[must_use]
     pub fn toggled(self) -> Self {
         match self {
@@ -43,12 +40,10 @@ impl Theme {
     }
 }
 
-/// The theme the browser chose, or the light theme if it has not chosen one.
 pub fn theme(cx: &Cx) -> Theme {
     store(cx).parse_or_default().get()
 }
 
-/// Switches the browser between the light and dark themes. Returns the new theme.
 pub fn toggle_theme(cx: &Cx) -> Result<Theme> {
     let theme = store(cx)
         .parse_or_default()
@@ -57,7 +52,6 @@ pub fn toggle_theme(cx: &Cx) -> Result<Theme> {
     Ok(theme)
 }
 
-/// The cookie holding the theme, kept for a year on every path.
 fn store(cx: &Cx) -> UnparsedCookieStore<Theme, impl Cookies> {
     let jar = cookies(cx)
         .default_path("/")

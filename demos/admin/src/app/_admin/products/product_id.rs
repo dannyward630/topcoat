@@ -1,5 +1,3 @@
-//! One product, with a form to change its details.
-
 use topcoat::{
     Result,
     context::{Cx, memoize, try_request_context},
@@ -32,20 +30,17 @@ use crate::{
 
 module_param!(pub product_id: u64, error = not_found);
 
-/// Tells the product page that the submitted form had invalid fields.
 struct Rejected {
     form: ProductForm,
     errors: ProductErrors,
 }
 
-/// The product the URL names.
 #[memoize(as_ref)]
 async fn product(cx: &Cx) -> Result<Product> {
     let id = *path_param::<ProductId>(cx)?;
     Ok(Product::find(cx, id).await?.ok_or_not_found()?)
 }
 
-/// Names the product in the layout's breadcrumb.
 #[layer]
 async fn crumb(cx: &Cx, body: Body, next: Next<'_>) -> Result<Response> {
     let name = product(cx).await?.name.clone();
@@ -57,11 +52,8 @@ async fn crumb(cx: &Cx, body: Body, next: Next<'_>) -> Result<Response> {
 pub async fn page(cx: &Cx) -> Result<impl View> {
     let user = require_user(cx).await?;
     let product = product(cx).await?;
-    // Viewers can see the product but not change it.
     let can_edit = user.role.can_edit();
 
-    // After a rejected save, the form shows what was submitted instead of what is
-    // stored.
     let rejected = try_request_context::<Rejected>(cx);
     let form = rejected.map_or_else(
         || ProductForm::of(product),
@@ -83,8 +75,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
             <p class="font-mono text-sm text-muted-foreground">(&product.sku)</p>
         </header>
 
-        // The form takes two thirds of a wide screen, with the buttons that save it
-        // beside it.
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
             card(
                 attrs: attributes! { class="lg:col-span-2" },
@@ -174,10 +164,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     })
 }
 
-/// A labeled input for the form field `name`, filled in with `value`, with `error`
-/// below it if the field is invalid.
-///
-/// `attrs` are forwarded to the `<input>`.
+/// Renders a labeled field with an optional error. Extra `attrs` go on the input.
 #[component]
 async fn product_field(
     cx: &Cx,
@@ -211,9 +198,6 @@ async fn product_field(
     })
 }
 
-/// Saves the submitted details, then shows the list of products again.
-///
-/// If a field is invalid, it shows the form again with the errors instead.
 #[route(POST)]
 pub async fn save(cx: &Cx, Form(form): Form<ProductForm>) -> Result<SeeOther> {
     let user = require_user(cx).await?;
@@ -222,8 +206,7 @@ pub async fn save(cx: &Cx, Form(form): Form<ProductForm>) -> Result<SeeOther> {
     let id = *path_param::<ProductId>(cx)?;
     let mut product = Product::find(cx, id).await?.ok_or_not_found()?;
     if let Err(errors) = product.edit(cx, &form).await? {
-        // Render the product page in response to this POST, without a redirect, so
-        // it can show the errors next to the submitted values.
+        // Rewrite the POST to keep the submitted values and errors in the request context.
         return Err(
             rewrite(href!(page, ProductId(id)).resolve(cx), Body::empty())
                 .method(Method::GET)

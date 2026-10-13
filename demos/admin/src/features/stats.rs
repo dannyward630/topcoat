@@ -1,8 +1,6 @@
-//! Made-up figures for the store's day, for the dashboard.
-//!
-//! The demo has no real shoppers, so the figures come from the clock. The store is
-//! busier in the afternoon than at night, and everyone looking at the figures at the
-//! same moment sees the same ones.
+//! Simulated sales and visitor counts, calculated from the current time.
+//! They rise during the day and fall at night. Everyone sees the same values
+//! at a given time; these figures do not use the database.
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 
@@ -10,40 +8,35 @@ use jiff::Timestamp;
 
 use crate::features::catalog::Money;
 
-/// The length of a minute, in seconds.
 const MINUTE: i64 = 60;
 
-/// The length of a day, in seconds.
 const DAY: i64 = 24 * 60 * MINUTE;
 
-/// The busiest time of day, in seconds after midnight UTC.
+/// Peak activity, measured in seconds since midnight UTC.
 const PEAK: i64 = 16 * 60 * MINUTE;
 
-/// How many minutes [`SalesStats`] keeps a history for.
+/// Sales history length in minutes.
 const SALES_HISTORY: i64 = 30;
 
-/// How many seconds [`VisitorStats`] keeps a history for.
+/// Visitor history length in seconds.
 const VISITOR_HISTORY: i64 = 60;
 
-/// The store's sales at one moment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SalesStats {
-    /// The orders placed today, from midnight UTC.
+    /// Sales since midnight UTC.
     pub today: Sales,
-    /// The orders placed yesterday up to the same time of day.
+    /// Yesterday's sales from midnight UTC through the same time of day.
     pub yesterday: Sales,
-    /// The sales in each of the last minutes, oldest first. The last one is the
-    /// current minute, which is still going.
+    /// Sales per minute, oldest first. The last entry is the current, incomplete minute.
     pub by_minute: Vec<Sales>,
 }
 
 impl SalesStats {
-    /// Returns the sales at the current moment.
     pub fn now() -> Self {
         Self::at(Timestamp::now().as_second())
     }
 
-    /// Returns the sales at `second`, counted from the Unix epoch.
+    /// Calculates sales at a Unix timestamp in seconds.
     fn at(second: i64) -> Self {
         let midnight = second - second.rem_euclid(DAY);
         let current_minute = second - second.rem_euclid(MINUTE);
@@ -62,25 +55,21 @@ impl SalesStats {
     }
 }
 
-/// The shoppers on the storefront at one moment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VisitorStats {
-    /// How many shoppers are on the storefront.
     pub current: i64,
-    /// How many shoppers were on the storefront at the same time yesterday.
+    /// Visitor count at this time yesterday.
     pub yesterday: i64,
-    /// How many shoppers were on the storefront in each of the last seconds, oldest
-    /// first.
+    /// Visitor counts per second, oldest first.
     pub by_second: Vec<i64>,
 }
 
 impl VisitorStats {
-    /// Returns the shoppers at the current moment.
     pub fn now() -> Self {
         Self::at(Timestamp::now().as_second())
     }
 
-    /// Returns the shoppers at `second`, counted from the Unix epoch.
+    /// Calculates visitor counts at a Unix timestamp in seconds.
     fn at(second: i64) -> Self {
         Self {
             current: visitors(second),
@@ -93,7 +82,6 @@ impl VisitorStats {
     }
 }
 
-/// The orders placed over some time, and what they add up to.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Sales {
     pub orders: i64,
@@ -101,15 +89,13 @@ pub struct Sales {
 }
 
 impl Sales {
-    /// Returns the orders placed from second `start` up to but not including second
-    /// `end`, counted from the Unix epoch.
+    /// Calculates sales for `start..end`, using Unix timestamps in seconds.
     fn between(start: i64, end: i64) -> Self {
         let mut sales = Self::default();
         let mut minute = start.div_euclid(MINUTE);
         while minute * MINUTE < end {
             let count = orders_in_minute(minute);
             for order in 0..count {
-                // The orders are spread over the minute, each a little early or late.
                 let spacing = MINUTE / count;
                 let placed =
                     minute * MINUTE + order * spacing + noise(("placed", minute, order), spacing);
@@ -123,7 +109,6 @@ impl Sales {
         sales
     }
 
-    /// The average total of the orders.
     pub fn average_order(&self) -> Money {
         if self.orders == 0 {
             Money(0)
@@ -133,28 +118,26 @@ impl Sales {
     }
 }
 
-/// How busy the store is at `second`, from 350 at night to 1000 at its busiest.
+/// Daily activity factor, ranging from 350 at night to 1000 at the peak.
 fn busyness(second: i64) -> i64 {
     let from_peak = (second.rem_euclid(DAY) - PEAK).abs();
     let from_peak = from_peak.min(DAY - from_peak);
     1_000 - from_peak * 650 / (DAY / 2)
 }
 
-/// How many orders are placed in `minute`, counted from the Unix epoch.
+/// Simulated orders for a minute, counted from the Unix epoch.
 fn orders_in_minute(minute: i64) -> i64 {
     let expected = busyness(minute * MINUTE) * 14 / 1_000;
     (expected + noise(("orders", minute), 5) - 2).max(0)
 }
 
-/// How many shoppers are on the storefront at `second`.
 fn visitors(second: i64) -> i64 {
-    // Waves of shoppers come and go on top of the time of day.
     let expected = busyness(second) * 180 / 1_000;
     expected + wave(second, 30, 40) + wave(second, 7, 12) + noise(("visitors", second), 5) - 2
 }
 
-/// Returns a number in `-height / 2..height / 2` that drifts smoothly to a new random
-/// target every `period` seconds.
+/// Interpolates between random values, choosing a new target every `period`
+/// seconds. Centers the result around zero with a range of about `height`.
 fn wave(second: i64, period: i64, height: i64) -> i64 {
     let step = second.div_euclid(period);
     let from = noise(("wave", period, step), height);
@@ -162,8 +145,7 @@ fn wave(second: i64, period: i64, height: i64) -> i64 {
     from + (to - from) * second.rem_euclid(period) / period - height / 2
 }
 
-/// Returns a number in `0..below` that looks random but is the same every time for the
-/// same `seed`.
+/// Produces a repeatable value in `0..below` from `seed`.
 fn noise(seed: impl Hash, below: i64) -> i64 {
     let mut hasher = DefaultHasher::new();
     seed.hash(&mut hasher);

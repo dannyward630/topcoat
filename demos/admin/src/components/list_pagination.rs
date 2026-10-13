@@ -9,25 +9,21 @@ use super::pagination::{
     pagination_next, pagination_previous,
 };
 
-/// One page of a list that is split into pages of the same size.
+/// Item counts and page boundaries for a paginated list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ListPage {
-    /// How many items the whole list has.
     pub count: usize,
-    /// The page's number, from 1 to [`pages`](Self::pages).
+    /// Current page, starting at 1.
     pub number: usize,
     per_page: usize,
 }
 
 impl ListPage {
-    /// Page `number` of a list of `count` items, with `per_page` items on each page.
-    ///
-    /// A number before the first page or after the last one gives the nearest page
-    /// instead. An empty list still has one page.
+    /// Clamps `number` to the available pages. Empty lists have one page.
     ///
     /// # Panics
     ///
-    /// Panics if `per_page` is 0.
+    /// Panics when `per_page` is zero.
     pub fn new(count: usize, per_page: usize, number: usize) -> Self {
         assert!(per_page > 0, "a page holds at least one item");
         let pages = count.div_ceil(per_page).max(1);
@@ -38,31 +34,26 @@ impl ListPage {
         }
     }
 
-    /// How many pages the list has.
     pub fn pages(self) -> usize {
         self.count.div_ceil(self.per_page).max(1)
     }
 
-    /// Where the page's first item is in the list, counting from 1.
+    /// Position of the first item, counting from 1.
     pub fn first(self) -> usize {
         (self.number - 1) * self.per_page + 1
     }
 
-    /// Where the page's last item is in the list, counting from 1.
+    /// Position of the last item, counting from 1. Returns 0 for an empty list.
     pub fn last(self) -> usize {
         (self.number * self.per_page).min(self.count)
     }
 
-    /// How many items the page shows.
     pub fn items(self) -> usize {
         self.last() + 1 - self.first()
     }
 
-    /// The page numbers to link to, with `None` where an ellipsis stands for the
-    /// pages left out.
-    ///
-    /// It keeps the first and last pages and the pages around this one. An ellipsis
-    /// never hides a single page.
+    /// Page links with `None` for gaps. Always includes both ends and the current
+    /// page's neighbors. A single missing page gets a link instead of an ellipsis.
     fn window(self) -> Vec<Option<usize>> {
         let pages = self.pages();
         let shown =
@@ -79,12 +70,9 @@ impl ListPage {
     }
 }
 
-/// The footer of a list split into pages: which items `page` shows, and links to the
-/// other pages.
-///
-/// `noun` names the items, like `orders`. `href` gives the URL of a page from its
-/// number, so a link also works when opened in a new tab. A plain click sets
-/// `number` instead, so the list can change in place.
+/// Shows the item range and page links. `noun` is the item label, such as `orders`.
+/// Clicks update the `number` signal in place. Each link also gets a URL from
+/// `href`, so it can be opened in a new tab.
 #[component]
 pub async fn list_pagination(
     page: ListPage,
@@ -111,8 +99,7 @@ pub async fn list_pagination(
                 " "
                 (noun)
             </p>
-            // Pulled right by the "Next" link's padding, so its chevron lines up with
-            // the last column of a table above.
+            // Offset the Next link's padding to align its arrow with the table content.
             pagination(
                 attrs: attributes! { class="sm:-mr-3 sm:justify-end" },
                 pagination_content(
@@ -129,7 +116,6 @@ pub async fn list_pagination(
                             }
                         )
                     )
-                    // Narrow screens only have room for the previous and next links.
                     for shown in page.window() {
                         pagination_item(
                             attrs: attributes! { class="hidden sm:block" },
@@ -206,7 +192,6 @@ mod tests {
 
     #[test]
     fn the_window_never_hides_a_single_page() {
-        // Page 2 sits between page 1 and page 3, so it shows instead of an ellipsis.
         let window = ListPage::new(200, 20, 4).window();
         assert_eq!(window[..4], [Some(1), Some(2), Some(3), Some(4)]);
     }

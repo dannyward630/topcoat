@@ -1,7 +1,4 @@
-//! The back office for signed-in staff.
-//!
-//! The leading underscore makes this module a group: its layout wraps every page
-//! below it without adding a segment to their URLs.
+//! The `_admin` group shares a layout without adding a URL segment.
 
 pub mod _dashboard;
 mod customers;
@@ -46,14 +43,12 @@ use crate::{
     },
 };
 
-/// A page in the sidebar's navigation.
 struct NavItem {
     label: &'static str,
     icon: IconData,
     target: &'static (dyn HrefTarget + Sync),
 }
 
-/// The sidebar's navigation, in display order.
 static NAV: [NavItem; 4] = [
     NavItem {
         label: "Dashboard",
@@ -77,12 +72,9 @@ static NAV: [NavItem; 4] = [
     },
 ];
 
-/// The current page's own entry in the breadcrumb, for a page below a section's main
-/// page, such as one order. Put it in the request context with a layer.
+/// A breadcrumb label for a detail page. Add it to the request context in a layer.
 pub struct Crumb(pub String);
 
-/// Whether the current page is `path` or a page below it, such as one order in the
-/// list of orders.
 fn in_section(cx: &Cx, path: &str) -> bool {
     let current = uri(cx).path();
     current == path
@@ -138,7 +130,6 @@ async fn shell(cx: &Cx, slot: Slot<'_>) -> Result<impl View> {
     })
 }
 
-/// The navigation sidebar, with the signed-in user at the bottom.
 #[component]
 async fn app_sidebar(
     cx: &Cx,
@@ -161,7 +152,7 @@ async fn app_sidebar(
                     }
                 })
                 @click=$(|e: Event| {
-                    // A click on the backdrop targets the sheet itself.
+                    // Backdrop clicks target the sheet; clicks inside it target its children.
                     if e.target.id == id {
                         mobile_open.set(false);
                     }
@@ -200,8 +191,6 @@ async fn app_sidebar(
                                 let href = href!(item.target);
                                 let current = in_section(cx, &href.resolve(cx));
                                 sidebar_menu_item(
-                                    // `link` opens the page without a full reload. The
-                                    // sidebar's class helper gives it the menu's look.
                                     link(
                                         href: href,
                                         attrs: attributes! {
@@ -229,7 +218,6 @@ async fn app_sidebar(
     })
 }
 
-/// The signed-in user, opening a menu with their account details and signing out.
 #[component]
 async fn user_menu(cx: &Cx, user: &User) -> Result<impl View> {
     let menu = element_id(cx);
@@ -246,7 +234,7 @@ async fn user_menu(cx: &Cx, user: &User) -> Result<impl View> {
                     ))
                 },
                 avatar(size: AvatarSize::Sm, avatar_fallback((user.initials())))
-                // The sidebar hides the last `<span>` when it collapses to icons.
+                // The sidebar hides its last `<span>` when collapsed, so keep the avatar outside it.
                 <span class="flex min-w-0 flex-1 items-center gap-2">
                     <span class="flex min-w-0 flex-col">
                         <span class="truncate font-medium">(&user.name)</span>
@@ -260,9 +248,6 @@ async fn user_menu(cx: &Cx, user: &User) -> Result<impl View> {
                     )
                 </span>
             )
-            // The menu opens beside the sidebar with its bottom edge level with the
-            // trigger's, so it grows upward and keeps the footer's spacing from the
-            // bottom of the window.
             dropdown_menu_content(
                 id: &menu,
                 side: FloatingSide::Right,
@@ -284,10 +269,6 @@ async fn user_menu(cx: &Cx, user: &User) -> Result<impl View> {
     })
 }
 
-/// The trail from the back office to the current page.
-///
-/// It names the section the page is in. The pages below a section link to it and add
-/// their [`Crumb`].
 #[component]
 async fn page_breadcrumb(cx: &Cx) -> Result<impl View> {
     let section = NAV
@@ -322,9 +303,6 @@ async fn page_breadcrumb(cx: &Cx) -> Result<impl View> {
     })
 }
 
-/// A button that switches between the light and dark themes.
-///
-/// It submits a form, and the page reloads in the new theme.
 #[component]
 async fn theme_toggle(cx: &Cx) -> Result<impl View> {
     let dark = theme(cx) == Theme::Dark;

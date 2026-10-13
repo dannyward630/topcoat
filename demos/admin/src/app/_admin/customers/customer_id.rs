@@ -1,5 +1,3 @@
-//! One customer, with what they spent and the orders they placed.
-
 use topcoat::{
     Result,
     context::{Cx, memoize},
@@ -35,17 +33,14 @@ use crate::{
 
 module_param!(pub customer_id: u64, error = not_found);
 
-/// How many rows the skeleton of the order history shows.
 const SKELETON_ROWS: usize = 5;
 
-/// The customer the URL names.
 #[memoize(as_ref)]
 async fn customer(cx: &Cx) -> Result<Customer> {
     let id = *path_param::<CustomerId>(cx)?;
     Ok(Customer::find(cx, id).await?.ok_or_not_found()?)
 }
 
-/// Names the customer in the layout's breadcrumb.
 #[layer]
 async fn crumb(cx: &Cx, body: Body, next: Next<'_>) -> Result<Response> {
     let name = customer(cx).await?.name.clone();
@@ -89,8 +84,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
             </div>
         </header>
 
-        // The orders load after the rest of the page, with a skeleton in their place
-        // until they arrive.
         suspense(
             fallback: view! { customer_orders_skeleton() },
             customer_orders(id: customer.id)
@@ -98,7 +91,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     })
 }
 
-/// A fact about the customer, after the icon `data`.
 #[component]
 async fn detail(data: IconData, child: Child<'_>) -> Result<impl View> {
     Ok(view! {
@@ -109,7 +101,6 @@ async fn detail(data: IconData, child: Child<'_>) -> Result<impl View> {
     })
 }
 
-/// What the customer with `id` spent, and the orders they placed.
 #[component]
 async fn customer_orders(cx: &Cx, id: u64) -> Result<impl View> {
     let orders = Order::of_customer(cx, id).await?;
@@ -143,8 +134,6 @@ async fn customer_orders(cx: &Cx, id: u64) -> Result<impl View> {
                     table_body(
                         for order in &orders {
                             let units = order.units();
-                            // The link covers the whole row, so a click anywhere on the
-                            // row opens the order.
                             table_row(
                                 attrs: attributes! { class="relative" },
                                 table_cell(
@@ -191,7 +180,6 @@ async fn customer_orders(cx: &Cx, id: u64) -> Result<impl View> {
     })
 }
 
-/// A placeholder for [`customer_orders`] of the same height as a few orders.
 #[component]
 async fn customer_orders_skeleton() -> Result<impl View> {
     Ok(view! {
@@ -240,7 +228,6 @@ async fn customer_orders_skeleton() -> Result<impl View> {
     })
 }
 
-/// A card with a figure about the customer under its `label`.
 #[component]
 async fn stat(label: &str, child: Child<'_>) -> Result<impl View> {
     Ok(view! {
@@ -254,7 +241,6 @@ async fn stat(label: &str, child: Child<'_>) -> Result<impl View> {
     })
 }
 
-/// The header row naming the columns of the order table.
 #[component]
 async fn order_columns() -> Result<impl View> {
     Ok(view! {
@@ -263,7 +249,6 @@ async fn order_columns() -> Result<impl View> {
                 table_head("Order")
                 table_head("Status")
                 table_head("Items")
-                // The placed column takes the space the other columns leave.
                 table_head(attrs: attributes! { class="w-full" }, "Placed")
                 table_head(attrs: attributes! { class="text-right" }, "Total")
             )

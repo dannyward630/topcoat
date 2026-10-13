@@ -1,6 +1,3 @@
-//! The products in the store's catalog, with a search, a stock level filter, and a
-//! choice of sort order.
-
 mod product_id;
 
 use serde::Serialize;
@@ -30,13 +27,10 @@ use crate::{
     },
 };
 
-/// How many products a page of the list shows.
 const PER_PAGE: usize = 20;
 
-/// The filters the list starts with.
-///
-/// The page links point here, so they also work when opened in a new tab. A plain
-/// click changes the page in place without changing the URL.
+/// URL parameters for the initial list. Pagination clicks update a signal without
+/// changing the URL; opening a page link in a new tab uses these parameters.
 #[query_params(error = redirect("?"))]
 #[derive(Serialize)]
 pub struct ProductsQuery {
@@ -47,8 +41,6 @@ pub struct ProductsQuery {
 }
 
 impl ProductsQuery {
-    /// The query for page `number` of the products at `stock` level that match
-    /// `text`, sorted by `sort`.
     fn new(text: &str, stock: Option<StockLevel>, sort: ProductSort, number: usize) -> Self {
         Self {
             q: (!text.is_empty()).then(|| text.to_owned()),
@@ -66,7 +58,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     let initial_stock = query.stock.map_or("", StockLevel::slug);
     let initial_sort = query.sort.unwrap_or_default().slug();
 
-    // The filters live in the browser. Changing one re-renders only the list.
     let search = signal(cx, || query.q.clone().unwrap_or_default());
     let stock = signal(cx, || initial_stock.to_owned());
     let sort = signal(cx, || initial_sort.to_owned());
@@ -161,10 +152,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     })
 }
 
-/// One page of the products that match the filters, with links to the other pages.
-///
-/// The products load after the rest of the list, with a skeleton in their place until
-/// they arrive.
 #[shard]
 async fn product_list(
     cx: &Cx,
@@ -173,12 +160,10 @@ async fn product_list(
     sort: Signal<String>,
     page_number: Signal<usize>,
 ) -> Result<impl View> {
-    // The browser can request a shard directly, so it checks the user itself.
+    // Shards can be requested without the page layout, so they need their own sign-in check.
     require_user(cx).await?;
 
     let text = search.get();
-    // An unknown stock level or sort order comes from a tampered request. Fall back
-    // to every stock level and the default order then.
     let selected = stock.get().parse::<StockLevel>().ok();
     let sort = sort.get().parse::<ProductSort>().unwrap_or_default();
     let count = ProductSearch {
@@ -243,7 +228,6 @@ async fn product_list(
     })
 }
 
-/// The table of products on page `number` of the list, sorted by `sort`.
 #[component]
 async fn product_rows(
     cx: &Cx,
@@ -258,13 +242,9 @@ async fn product_rows(
             product_columns()
             table_body(
                 for product in &products {
-                    // The name links to the product. The link covers the whole row, so
-                    // a click anywhere on the row opens the product.
                     table_row(
                         attrs: attributes! { class="relative" },
                         table_cell(
-                            // Long names shorten with an ellipsis instead of widening
-                            // the table.
                             <div class="flex max-w-80 min-w-0 flex-col">
                                 link(
                                     href: href!(product_id::page, ProductId(product.id)),
@@ -294,7 +274,6 @@ async fn product_rows(
     })
 }
 
-/// A placeholder for [`product_rows`] with `rows` rows of the same height.
 #[component]
 async fn product_rows_skeleton(rows: usize) -> Result<impl View> {
     Ok(view! {
@@ -330,13 +309,11 @@ async fn product_rows_skeleton(rows: usize) -> Result<impl View> {
     })
 }
 
-/// The header row naming the columns of the product table.
 #[component]
 async fn product_columns() -> Result<impl View> {
     Ok(view! {
         table_header(
             table_row(
-                // The product column takes the space the other columns leave.
                 table_head(attrs: attributes! { class="w-full" }, "Product")
                 table_head("Status")
                 table_head(attrs: attributes! { class="text-right" }, "Stock")
@@ -346,7 +323,6 @@ async fn product_columns() -> Result<impl View> {
     })
 }
 
-/// A badge naming a product's stock level, with a dot colored by how urgent it is.
 #[component]
 async fn stock_badge(level: StockLevel) -> Result<impl View> {
     let dot: StaticClass = match level {

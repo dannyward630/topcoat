@@ -1,6 +1,3 @@
-//! One order, with its items and customer, and the buttons that move it to its next
-//! status.
-
 use serde::Deserialize;
 use topcoat::{
     Result,
@@ -43,7 +40,6 @@ use crate::{
 
 module_param!(pub order_id: u64, error = not_found);
 
-/// Names the order in the layout's breadcrumb.
 #[layer]
 async fn crumb(cx: &Cx, body: Body, next: Next<'_>) -> Result<Response> {
     let id = path_param::<OrderId>(cx)?;
@@ -55,9 +51,8 @@ async fn crumb(cx: &Cx, body: Body, next: Next<'_>) -> Result<Response> {
 pub async fn page(cx: &Cx) -> Result<impl View> {
     let user = require_user(cx).await?;
     let id = *path_param::<OrderId>(cx)?;
-    // The order itself loads before the page, so a missing order gets a 404 status.
+    // Look up the order before streaming starts so a missing order can return 404.
     let order = Order::find(cx, id).await?.ok_or_not_found()?;
-    // Viewers can see the order but not change it.
     let next = if user.role.can_edit() {
         order.status.next()
     } else {
@@ -86,8 +81,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
             }
         </header>
 
-        // The items and the customer load after the rest of the page, each with a
-        // skeleton in its place until it arrives.
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
             card(
                 attrs: attributes! { class="lg:col-span-2" },
@@ -108,7 +101,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     })
 }
 
-/// The items of the order with `id`, which add up to `total`.
 #[component]
 async fn order_items(cx: &Cx, id: u64, total: Money) -> Result<impl View> {
     let items = OrderItem::of_order(cx, id).await?;
@@ -168,7 +160,6 @@ async fn order_items(cx: &Cx, id: u64, total: Money) -> Result<impl View> {
     })
 }
 
-/// A placeholder for [`order_items`] with rows of the same height.
 #[component]
 async fn order_items_skeleton() -> Result<impl View> {
     Ok(view! {
@@ -220,7 +211,6 @@ async fn order_items_skeleton() -> Result<impl View> {
     })
 }
 
-/// The header row naming the columns of the item table.
 #[component]
 async fn order_item_columns() -> Result<impl View> {
     Ok(view! {
@@ -235,7 +225,6 @@ async fn order_item_columns() -> Result<impl View> {
     })
 }
 
-/// The contact details of the customer with `id`.
 #[component]
 async fn customer_details(cx: &Cx, id: u64) -> Result<impl View> {
     let customer = Customer::get(cx, id).await?;
@@ -276,7 +265,6 @@ async fn customer_details(cx: &Cx, id: u64) -> Result<impl View> {
     })
 }
 
-/// A placeholder for [`customer_details`] of the same height.
 #[component]
 async fn customer_details_skeleton() -> Result<impl View> {
     Ok(view! {
@@ -311,9 +299,6 @@ async fn customer_details_skeleton() -> Result<impl View> {
     })
 }
 
-/// The buttons that move the order with `id` to one of the `next` statuses.
-///
-/// A status that stops the order, such as cancelled, asks for confirmation first.
 #[component]
 async fn status_actions(cx: &Cx, id: u64, next: &'static [OrderStatus]) -> Result<impl View> {
     let confirming = signal(cx, || false);
@@ -362,7 +347,7 @@ async fn status_actions(cx: &Cx, id: u64, next: &'static [OrderStatus]) -> Resul
                         }
                     })
                     @click=$(|e: Event| {
-                        // A click on the backdrop targets the dialog itself.
+                        // Backdrop clicks target the dialog; clicks inside it target its children.
                         if e.target.id == dialog_id {
                             confirming.set(false);
                         }
@@ -409,11 +394,9 @@ async fn status_actions(cx: &Cx, id: u64, next: &'static [OrderStatus]) -> Resul
 
 #[derive(Deserialize)]
 pub struct Advance {
-    /// The status to move the order to.
     status: OrderStatus,
 }
 
-/// Moves the order to the submitted status, then shows the order again.
 #[route(POST)]
 pub async fn advance(cx: &Cx, Form(form): Form<Advance>) -> Result<SeeOther> {
     let user = require_user(cx).await?;
@@ -421,9 +404,8 @@ pub async fn advance(cx: &Cx, Form(form): Form<Advance>) -> Result<SeeOther> {
 
     let id = *path_param::<OrderId>(cx)?;
     let mut order = Order::find(cx, id).await?.ok_or_not_found()?;
-    // A page opened before someone else changed the order can offer a status the
-    // order can no longer move to. The order then stays as it is, and the page
-    // shows its current status.
+    // Another request may have changed the status since this page was opened.
+    // If this transition is no longer allowed, show the current order unchanged.
     order.advance(cx, form.status).await?;
 
     Ok(see_other(href!(page, OrderId(id)).resolve(cx)))

@@ -1,5 +1,3 @@
-//! Demo data for a fresh database.
-
 use jiff::{SignedDuration, Timestamp};
 use toasty::Db;
 
@@ -10,17 +8,15 @@ use crate::features::{
     user::{Role, User, hash_password},
 };
 
-/// The password of every demo account.
 pub const DEMO_PASSWORD: &str = "backroom";
 
-/// The demo accounts, one for each role.
 pub const DEMO_USERS: [(&str, &str, Role); 3] = [
     ("Ada Lovelace", "ada@backroom.test", Role::Admin),
     ("Grace Hopper", "grace@backroom.test", Role::Staff),
     ("Alan Turing", "alan@backroom.test", Role::Viewer),
 ];
 
-/// The catalog: name, SKU, and price in cents.
+/// Product name, SKU, and price in cents.
 const PRODUCTS: [(&str, &str, i64); 40] = [
     ("Canvas Tote Bag", "BAG-001", 2400),
     ("Leather Weekender", "BAG-002", 18900),
@@ -101,17 +97,13 @@ const CITIES: [&str; 10] = [
     "Vienna",
 ];
 
-/// How many customers and orders to create.
 const CUSTOMERS: usize = 80;
 const ORDERS: usize = 400;
 
-/// How far back the oldest orders go.
 const HISTORY: SignedDuration = SignedDuration::from_hours(90 * 24);
 
-/// Fills an empty database with demo data.
-///
-/// Each kind of data is only added if its table is empty, so restarting the demo keeps
-/// changes made in the back office.
+/// Adds staff accounts if there are none. Adds the sample store data if there
+/// are no products. Existing data is otherwise left alone.
 pub async fn seed(db: &Db) -> toasty::Result<()> {
     let mut db = db.clone();
 
@@ -127,7 +119,6 @@ pub async fn seed(db: &Db) -> toasty::Result<()> {
 
 async fn seed_users(db: &mut Db) -> toasty::Result<()> {
     for (name, email, role) in DEMO_USERS {
-        // Each account gets its own salt, so equal passwords still hash differently.
         let password_hash = tokio::task::spawn_blocking(|| hash_password(DEMO_PASSWORD))
             .await
             .expect("hashing a password does not panic");
@@ -146,12 +137,9 @@ async fn seed_users(db: &mut Db) -> toasty::Result<()> {
 }
 
 async fn seed_store(db: &mut Db) -> toasty::Result<()> {
-    // A fixed seed gives every fresh database the same data.
     let mut rng = Rng(0x5eed);
     let now = Timestamp::now();
 
-    // One transaction makes the many inserts fast, and leaves no half-filled store
-    // behind if one fails.
     let mut tx = db.transaction().await?;
 
     let mut products = Vec::with_capacity(PRODUCTS.len());
@@ -173,7 +161,6 @@ async fn seed_store(db: &mut Db) -> toasty::Result<()> {
         let last = LAST_NAMES[(index * 7) % LAST_NAMES.len()];
         let customer = toasty::create!(Customer {
             name: format!("{first} {last}"),
-            // The index keeps addresses unique when a name comes up twice.
             email: format!(
                 "{}.{}{index}@example.com",
                 first.to_lowercase(),
@@ -187,7 +174,7 @@ async fn seed_store(db: &mut Db) -> toasty::Result<()> {
         customers.push(customer);
     }
 
-    // Orders are created oldest first, so their IDs follow the order they were placed.
+    // Insert in date order so sorting by ID also sorts by date.
     let mut placed = (0..ORDERS)
         .map(|_| now - rng.duration(HISTORY))
         .collect::<Vec<_>>();
@@ -232,8 +219,6 @@ async fn seed_store(db: &mut Db) -> toasty::Result<()> {
     tx.commit().await
 }
 
-/// Picks a believable status for an order placed `age` ago: recent orders are still
-/// in progress, older ones are mostly delivered.
 fn status_for_age(rng: &mut Rng, age: SignedDuration) -> OrderStatus {
     let roll = rng.below(100);
     if roll < 4 {
@@ -251,10 +236,7 @@ fn status_for_age(rng: &mut Rng, age: SignedDuration) -> OrderStatus {
     }
 }
 
-/// A small pseudo-random number generator, so the demo needs no extra dependency.
-///
-/// This is xorshift64. It is not suitable for anything that needs to be
-/// unpredictable.
+/// Xorshift64 generator for sample data. Its output is predictable.
 struct Rng(u64);
 
 impl Rng {
@@ -265,18 +247,17 @@ impl Rng {
         self.0
     }
 
-    /// Returns a number from 0 up to, but not including, `bound`.
+    /// Generates a value in `0..bound`.
     fn below(&mut self, bound: u32) -> u32 {
         u32::try_from(self.next() % u64::from(bound)).expect("the remainder is below `bound`")
     }
 
-    /// Returns one of `items`.
     fn pick<'a, T>(&mut self, items: &'a [T]) -> &'a T {
         let index = self.next() % items.len() as u64;
         &items[usize::try_from(index).expect("the remainder is below the length")]
     }
 
-    /// Returns a duration from zero up to, but not including, `max`.
+    /// Generates a duration in `0..max`.
     fn duration(&mut self, max: SignedDuration) -> SignedDuration {
         let secs = self.next() % max.as_secs().unsigned_abs();
         SignedDuration::from_secs(i64::try_from(secs).expect("the remainder is below `max`"))

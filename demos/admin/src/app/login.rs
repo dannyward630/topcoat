@@ -1,5 +1,3 @@
-//! Signing in.
-
 use serde::Deserialize;
 use topcoat::{
     Result,
@@ -29,10 +27,7 @@ use crate::{
     seed::{DEMO_PASSWORD, DEMO_USERS},
 };
 
-/// Tells the sign-in page that signing in failed, with an error for each field
-/// that caused it.
 struct SignInFailed {
-    /// The submitted email, to fill in again.
     email: String,
     email_error: Option<&'static str>,
     password_error: Option<&'static str>,
@@ -49,7 +44,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     let email_error = failed.and_then(|failed| failed.email_error);
     let password_error = failed.and_then(|failed| failed.password_error);
 
-    // IDs that connect the labels to their inputs and the button to its form.
     let form_id = element_id(cx);
     let email_id = element_id(cx);
     let email_error_id = element_id(cx);
@@ -74,8 +68,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                     card_description("Use your staff account to manage the store.")
                 )
                 card_content(
-                    // The server checks the fields and shows its own errors, so the
-                    // browser does not check the email's format.
+                    // Disable browser validation so the form shows the server's field errors.
                     <form
                         id=(&form_id)
                         method="post"
@@ -148,7 +141,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     })
 }
 
-/// Lists the seeded accounts, so visitors can try each role.
 #[topcoat::view::component]
 async fn demo_accounts() -> Result<impl View> {
     Ok(view! {
@@ -185,7 +177,6 @@ struct Credentials {
     password: String,
 }
 
-/// Signs in with an email and password, or shows the form again with an error.
 #[route(POST)]
 async fn submit(cx: &Cx, Form(credentials): Form<Credentials>) -> Result<SeeOther> {
     let Credentials { email, password } = credentials;
@@ -202,8 +193,7 @@ async fn submit(cx: &Cx, Form(credentials): Form<Credentials>) -> Result<SeeOthe
         email_error = Some("Wrong email or password.");
     }
 
-    // Render the sign-in page in response to this POST, without a redirect, so it
-    // can show the errors next to the submitted email.
+    // Rewrite the POST to keep the submitted email and errors in the request context.
     Err(rewrite(href!(page).resolve(cx), Body::empty())
         .method(Method::GET)
         .with(SignInFailed {

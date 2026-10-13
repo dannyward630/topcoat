@@ -1,6 +1,3 @@
-//! The orders placed in the store, with a search, a status filter, and a choice of
-//! sort order.
-
 pub(super) mod order_id;
 
 use jiff::Timestamp;
@@ -32,13 +29,10 @@ use crate::{
     },
 };
 
-/// How many orders a page of the list shows.
 const PER_PAGE: usize = 20;
 
-/// The filters the list starts with.
-///
-/// The page links point here, so they also work when opened in a new tab. A plain
-/// click changes the page in place without changing the URL.
+/// URL parameters for the initial list. Pagination clicks update a signal without
+/// changing the URL; opening a page link in a new tab uses these parameters.
 #[query_params(error = redirect("?"))]
 #[derive(Serialize)]
 pub struct OrdersQuery {
@@ -49,8 +43,6 @@ pub struct OrdersQuery {
 }
 
 impl OrdersQuery {
-    /// The query for page `number` of the orders with `status` that match `text`,
-    /// sorted by `sort`.
     fn new(text: &str, status: Option<OrderStatus>, sort: OrderSort, number: usize) -> Self {
         Self {
             q: (!text.is_empty()).then(|| text.to_owned()),
@@ -68,7 +60,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     let initial_status = query.status.map_or("", OrderStatus::slug);
     let initial_sort = query.sort.unwrap_or_default().slug();
 
-    // The filters live in the browser. Changing one re-renders only the list.
     let search = signal(cx, || query.q.clone().unwrap_or_default());
     let status = signal(cx, || initial_status.to_owned());
     let sort = signal(cx, || initial_sort.to_owned());
@@ -163,10 +154,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     })
 }
 
-/// One page of the orders that match the filters, with links to the other pages.
-///
-/// The orders load after the rest of the list, with a skeleton in their place until
-/// they arrive.
 #[shard]
 async fn order_list(
     cx: &Cx,
@@ -175,12 +162,10 @@ async fn order_list(
     sort: Signal<String>,
     page_number: Signal<usize>,
 ) -> Result<impl View> {
-    // The browser can request a shard directly, so it checks the user itself.
+    // Shards can be requested without the page layout, so they need their own sign-in check.
     require_user(cx).await?;
 
     let text = search.get();
-    // An unknown status or sort order comes from a tampered request. Fall back to
-    // every status and the default order then.
     let selected = status.get().parse::<OrderStatus>().ok();
     let sort = sort.get().parse::<OrderSort>().unwrap_or_default();
     let count = OrderSearch {
@@ -245,7 +230,6 @@ async fn order_list(
     })
 }
 
-/// The table of orders on page `number` of the list, sorted by `sort`.
 #[component]
 async fn order_rows(
     cx: &Cx,
@@ -262,8 +246,6 @@ async fn order_rows(
                 for order in &orders {
                     let customer = order.customer.get();
                     let units = order.units();
-                    // The order number links to the order. The link covers the whole
-                    // row, so a click anywhere on the row opens the order.
                     table_row(
                         attrs: attributes! { class="relative" },
                         table_cell(
@@ -281,8 +263,6 @@ async fn order_rows(
                                     size: AvatarSize::Sm,
                                     avatar_fallback((customer.initials()))
                                 )
-                                // Long names and addresses shorten with an ellipsis
-                                // instead of widening the table.
                                 <div class="flex max-w-64 min-w-0 flex-col">
                                     <span class="truncate font-medium">(&customer.name)</span>
                                     <span class="truncate text-xs text-muted-foreground">
@@ -324,7 +304,6 @@ async fn order_rows(
     })
 }
 
-/// A placeholder for [`order_rows`] with `rows` rows of the same height.
 #[component]
 async fn order_rows_skeleton(rows: usize) -> Result<impl View> {
     Ok(view! {
@@ -368,14 +347,12 @@ async fn order_rows_skeleton(rows: usize) -> Result<impl View> {
     })
 }
 
-/// The header row naming the columns of the order table.
 #[component]
 async fn order_columns() -> Result<impl View> {
     Ok(view! {
         table_header(
             table_row(
                 table_head("Order")
-                // The customer column takes the space the other columns leave.
                 table_head(attrs: attributes! { class="w-full" }, "Customer")
                 table_head("Status")
                 table_head("Items")
@@ -386,7 +363,6 @@ async fn order_columns() -> Result<impl View> {
     })
 }
 
-/// A badge naming an order's status, with a dot colored by how far along it is.
 #[component]
 pub(super) async fn status_badge(status: OrderStatus) -> Result<impl View> {
     let dot: StaticClass = match status {
@@ -407,8 +383,8 @@ pub(super) async fn status_badge(status: OrderStatus) -> Result<impl View> {
     })
 }
 
-/// Describes how long ago `timestamp` was, like `3 hours ago`. Anything older than a
-/// week shows its date instead, like `Oct 12, 2026`.
+/// Formats recent timestamps as elapsed time, such as `3 hours ago`.
+/// After a week, uses a date such as `Oct 12, 2026`.
 pub(super) fn time_ago(timestamp: Timestamp) -> String {
     let minutes = Timestamp::now().duration_since(timestamp).as_mins();
     let (amount, unit) = if minutes < 60 {

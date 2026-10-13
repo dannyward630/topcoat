@@ -1,5 +1,3 @@
-//! The people who buy from the store.
-
 use std::str::FromStr;
 
 use jiff::Timestamp;
@@ -10,7 +8,6 @@ use topcoat::{Result, context::Cx};
 use super::{catalog::Money, order::Order};
 use crate::db::{contains_pattern, db, latency};
 
-/// Someone who has an account with the store.
 #[derive(Debug, toasty::Model)]
 pub struct Customer {
     #[key]
@@ -24,7 +21,6 @@ pub struct Customer {
 
     pub city: String,
 
-    /// When the customer created their account.
     pub joined_at: Timestamp,
 
     #[has_many]
@@ -32,20 +28,17 @@ pub struct Customer {
 }
 
 impl Customer {
-    /// Returns the customer with `id`.
     pub async fn get(cx: &Cx, id: u64) -> Result<Customer> {
         latency().await;
         let customer = Customer::get_by_id(&mut db(cx), &id).await?;
         Ok(customer)
     }
 
-    /// Returns the customer with `id`, or `None` if there is none.
     pub async fn find(cx: &Cx, id: u64) -> Result<Option<Customer>> {
         let customer = Customer::filter_by_id(id).first().exec(&mut db(cx)).await?;
         Ok(customer)
     }
 
-    /// The initials of the customer's name, for avatars.
     pub fn initials(&self) -> String {
         self.name
             .split_whitespace()
@@ -55,19 +48,17 @@ impl Customer {
     }
 }
 
-/// What a customer bought, from their orders.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Spending {
-    /// How many orders the customer placed, including the cancelled and refunded ones.
+    /// Counts all orders, including cancelled and refunded orders.
     pub orders: usize,
-    /// The total of the orders that were not cancelled or refunded.
+    /// Total spending, excluding cancelled and refunded orders.
     pub spent: Money,
-    /// How many orders count towards `spent`.
+    /// Number of orders included in `spent`.
     kept: i64,
 }
 
 impl Spending {
-    /// What the customer who placed `orders` bought.
     pub fn of(orders: &[Order]) -> Self {
         let kept = orders.iter().filter(|order| !order.status.is_reversal());
         Self {
@@ -77,31 +68,25 @@ impl Spending {
         }
     }
 
-    /// The average total of the orders that count towards `spent`, or `None` if
-    /// there are none.
+    /// Average spending per order, excluding cancellations and refunds.
+    /// Returns `None` if no orders remain.
     pub fn average_order(self) -> Option<Money> {
         (self.kept > 0).then(|| Money(self.spent.0 / self.kept))
     }
 }
 
-/// The order to list customers in.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum CustomerSort {
-    /// By name, from A to Z.
     #[default]
     Name,
-    /// The customers who joined most recently first.
     Newest,
-    /// The customers who joined earliest first.
     Oldest,
 }
 
 impl CustomerSort {
-    /// Every sort order, in the order to offer them.
     pub const ALL: [Self; 3] = [Self::Name, Self::Newest, Self::Oldest];
 
-    /// The sort order's name, for display.
     pub fn label(self) -> &'static str {
         match self {
             Self::Name => "Name",
@@ -110,7 +95,6 @@ impl CustomerSort {
         }
     }
 
-    /// The sort order's name in URLs and forms. [`FromStr`] reads it back.
     pub fn slug(self) -> &'static str {
         match self {
             Self::Name => "name",
@@ -131,22 +115,17 @@ impl FromStr for CustomerSort {
     }
 }
 
-/// The error for a string that names no [`CustomerSort`].
 #[derive(Debug)]
 pub struct UnknownSort;
 
-/// Which customers to list.
 #[derive(Debug, Default)]
 pub struct CustomerSearch<'a> {
-    /// Text to find in the customer's name or email. Empty text matches every
-    /// customer.
+    /// Searches names and email addresses. Blank text matches all customers.
     pub text: &'a str,
 }
 
 impl CustomerSearch<'_> {
-    /// Returns the matching customers on page `page` of pages with `per_page`
-    /// customers each, sorted by `sort`, with their orders loaded. The first page
-    /// is 1.
+    /// Loads one page of matching customers and their orders. Page numbers start at 1.
     pub async fn page(
         &self,
         cx: &Cx,
@@ -171,7 +150,6 @@ impl CustomerSearch<'_> {
         Ok(customers)
     }
 
-    /// Returns how many customers match.
     pub async fn count(&self, cx: &Cx) -> Result<usize> {
         let count = self.query().count().exec(&mut db(cx)).await?;
         Ok(usize::try_from(count).unwrap_or(usize::MAX))
