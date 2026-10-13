@@ -8,10 +8,6 @@ registry = "topcoat"
 hash = "sha256:36961244dab6cac17e4c019d22c0bdddb763b87092a54130b547f5cb7dd6c17c"
 file = "styles.css"
 
-[registries.topcoat.components.alert]
-hash = "sha256:47c33b40d0a966b88a113ad13b6c17d9c3f104128b45b7fea297eb2a0b9c5f9c"
-file = "src/components/alert.rs"
-
 [registries.topcoat.components.avatar]
 hash = "sha256:e44da5084ca4425a1e9b094ac698111777d19da637b1bdb016153e58e8741a51"
 file = "src/components/avatar.rs"

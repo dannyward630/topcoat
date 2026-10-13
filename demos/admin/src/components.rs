@@ -1,4 +1,3 @@
-pub mod alert;
 pub mod avatar;
 pub mod badge;
 pub mod breadcrumb;
