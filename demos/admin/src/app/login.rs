@@ -16,7 +16,6 @@ use topcoat::{
 
 use crate::{
     components::{
-        alert::{AlertVariant, alert, alert_description, alert_title},
         badge::{BadgeVariant, badge},
         button::button,
         card::{card, card_content, card_description, card_footer, card_header, card_title},
@@ -30,22 +29,13 @@ use crate::{
     seed::{DEMO_PASSWORD, DEMO_USERS},
 };
 
-/// Tells the sign-in page that signing in failed.
-///
-/// A field left empty has an error. If both were filled in, they did not match an
-/// account.
+/// Tells the sign-in page that signing in failed, with an error for each field
+/// that caused it.
 struct SignInFailed {
     /// The submitted email, to fill in again.
     email: String,
     email_error: Option<&'static str>,
     password_error: Option<&'static str>,
-}
-
-impl SignInFailed {
-    /// Whether the email and password were filled in but matched no account.
-    fn no_match(&self) -> bool {
-        self.email_error.is_none() && self.password_error.is_none()
-    }
 }
 
 #[page]
@@ -93,14 +83,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                         novalidate=""
                     >
                         field_group(
-                            if failed.is_some_and(SignInFailed::no_match) {
-                                alert(
-                                    variant: AlertVariant::Destructive,
-                                    icon(data: iconify_icon!("lucide:circle-alert"))
-                                    alert_title("Wrong email or password")
-                                    alert_description("Check your details and try again.")
-                                )
-                            }
                             field(
                                 field_label(
                                     attrs: attributes! { for=(&email_id) },
@@ -207,29 +189,27 @@ struct Credentials {
 #[route(POST)]
 async fn submit(cx: &Cx, Form(credentials): Form<Credentials>) -> Result<SeeOther> {
     let Credentials { email, password } = credentials;
-    let email_error = email.trim().is_empty().then_some("Enter your email.");
+    let mut email_error = email.trim().is_empty().then_some("Enter your email.");
     let password_error = password.is_empty().then_some("Enter your password.");
 
-    let user = if email_error.is_none() && password_error.is_none() {
-        User::authenticate(cx, &email, password).await?
-    } else {
-        None
-    };
-    let Some(user) = user else {
-        // Render the sign-in page in response to this POST, without a redirect, so
-        // it can show the errors next to the submitted email.
-        return Err(rewrite(href!(page).resolve(cx), Body::empty())
-            .method(Method::GET)
-            .with(SignInFailed {
-                email,
-                email_error,
-                password_error,
-            })
-            .into());
-    };
+    if email_error.is_none() && password_error.is_none() {
+        if let Some(user) = User::authenticate(cx, &email, password).await? {
+            sign_in(cx, &user).await?;
+            return Ok(see_other(
+                href!(super::_admin::_dashboard::page).resolve(cx),
+            ));
+        }
+        email_error = Some("Wrong email or password.");
+    }
 
-    sign_in(cx, &user).await?;
-    Ok(see_other(
-        href!(super::_admin::_dashboard::page).resolve(cx),
-    ))
+    // Render the sign-in page in response to this POST, without a redirect, so it
+    // can show the errors next to the submitted email.
+    Err(rewrite(href!(page).resolve(cx), Body::empty())
+        .method(Method::GET)
+        .with(SignInFailed {
+            email,
+            email_error,
+            password_error,
+        })
+        .into())
 }
