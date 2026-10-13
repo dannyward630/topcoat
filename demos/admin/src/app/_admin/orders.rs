@@ -78,11 +78,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     let sort_id = element_id(cx);
 
     Ok(view! {
-        <header class="flex flex-col gap-1">
-            <h1 class="text-2xl font-semibold tracking-tight">"Orders"</h1>
-            <p class="text-muted-foreground">"Every order placed in the store."</p>
-        </header>
-
         <section
             class="overflow-hidden rounded-xl border border-border bg-card \
                 text-card-foreground shadow-xs"
