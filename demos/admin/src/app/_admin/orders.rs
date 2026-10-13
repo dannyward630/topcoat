@@ -332,11 +332,6 @@ fn page_window(current: usize, pages: usize) -> Vec<Option<usize>> {
     window
 }
 
-/// Classes for the columns that narrow screens leave out.
-const ITEMS_COLUMN: StaticClass = class!("hidden lg:table-cell");
-const PLACED_COLUMN: StaticClass = class!("hidden md:table-cell");
-const STATUS_COLUMN: StaticClass = class!("hidden sm:table-cell");
-
 /// The table of orders on page `number` of the list, sorted by `sort`.
 #[component]
 async fn order_rows(
@@ -366,35 +361,24 @@ async fn order_rows(
                             (order.id)
                         )
                         table_cell(
-                            // `max-w-0` lets long names and addresses shorten with an
-                            // ellipsis instead of widening the table.
-                            attrs: attributes! { class="max-w-0" },
                             <div class="flex items-center gap-3">
                                 avatar(
                                     size: AvatarSize::Sm,
                                     avatar_fallback((customer.initials()))
                                 )
-                                <div class="flex min-w-0 flex-col">
+                                // Long names and addresses shorten with an ellipsis
+                                // instead of widening the table.
+                                <div class="flex max-w-64 min-w-0 flex-col">
                                     <span class="truncate font-medium">(&customer.name)</span>
                                     <span class="truncate text-xs text-muted-foreground">
                                         (&customer.email)
                                     </span>
                                 </div>
                             </div>
-                            // Narrow screens leave out the status column, so the status
-                            // moves here.
-                            <div class="mt-2 sm:hidden">
-                                status_badge(status: order.status)
-                            </div>
                         )
+                        table_cell(status_badge(status: order.status))
                         table_cell(
-                            attrs: attributes! { class=(STATUS_COLUMN) },
-                            status_badge(status: order.status)
-                        )
-                        table_cell(
-                            attrs: attributes! {
-                                class=(class!("text-muted-foreground tabular-nums", ITEMS_COLUMN))
-                            },
+                            attrs: attributes! { class="text-muted-foreground tabular-nums" },
                             (units)
                             if units == 1 {
                                 " item"
@@ -403,7 +387,7 @@ async fn order_rows(
                             }
                         )
                         table_cell(
-                            attrs: attributes! { class=(class!("text-muted-foreground", PLACED_COLUMN)) },
+                            attrs: attributes! { class="text-muted-foreground" },
                             <time
                                 datetime=(order.placed_at.to_string())
                                 title=(order
@@ -437,13 +421,12 @@ async fn order_rows_skeleton(rows: usize) -> Result<impl View> {
                     table_row(
                         table_cell(skeleton(attrs: attributes! { class="h-4 w-10" }))
                         table_cell(
-                            attrs: attributes! { class="max-w-0" },
                             <div class="flex items-center gap-3">
                                 avatar(
                                     size: AvatarSize::Sm,
                                     skeleton(attrs: attributes! { class="size-full" })
                                 )
-                                <div class="flex min-w-0 flex-col">
+                                <div class="flex max-w-64 min-w-0 flex-col">
                                     <div class="flex h-5 items-center">
                                         skeleton(
                                             attrs: attributes! { class="h-3.5 w-28 max-w-full" }
@@ -456,22 +439,10 @@ async fn order_rows_skeleton(rows: usize) -> Result<impl View> {
                                     </div>
                                 </div>
                             </div>
-                            <div class="mt-2 sm:hidden">
-                                skeleton(attrs: attributes! { class="h-5.5 w-20" })
-                            </div>
                         )
-                        table_cell(
-                            attrs: attributes! { class=(STATUS_COLUMN) },
-                            skeleton(attrs: attributes! { class="h-5.5 w-20" })
-                        )
-                        table_cell(
-                            attrs: attributes! { class=(ITEMS_COLUMN) },
-                            skeleton(attrs: attributes! { class="h-4 w-14" })
-                        )
-                        table_cell(
-                            attrs: attributes! { class=(PLACED_COLUMN) },
-                            skeleton(attrs: attributes! { class="h-4 w-20" })
-                        )
+                        table_cell(skeleton(attrs: attributes! { class="h-5.5 w-20" }))
+                        table_cell(skeleton(attrs: attributes! { class="h-4 w-14" }))
+                        table_cell(skeleton(attrs: attributes! { class="h-4 w-20" }))
                         table_cell(
                             skeleton(attrs: attributes! { class="ml-auto h-4 w-16" })
                         )
@@ -491,9 +462,9 @@ async fn order_columns() -> Result<impl View> {
                 table_head("Order")
                 // The customer column takes the space the other columns leave.
                 table_head(attrs: attributes! { class="w-full" }, "Customer")
-                table_head(attrs: attributes! { class=(STATUS_COLUMN) }, "Status")
-                table_head(attrs: attributes! { class=(ITEMS_COLUMN) }, "Items")
-                table_head(attrs: attributes! { class=(PLACED_COLUMN) }, "Placed")
+                table_head("Status")
+                table_head("Items")
+                table_head("Placed")
                 table_head(attrs: attributes! { class="text-right" }, "Total")
             )
         )
