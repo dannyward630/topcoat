@@ -6,15 +6,15 @@ use std::{
 use clap::Args;
 use console::style;
 
-use super::{CACHE_SCOPE, OUT_SUBDIR};
+use super::CACHE_SCOPE;
 use crate::common::cargo::{BuildFlags, BuildOpts, Metadata};
 
 #[derive(Args)]
 pub(super) struct BundleArgs {
     #[command(flatten)]
     build: BuildFlags,
-    /// Output directory for the bundle (defaults to an `assets` directory
-    /// next to the built executable)
+    /// Output directory for the bundle (defaults to an executable-scoped
+    /// directory under `assets` next to the built executable)
     #[arg(short, long)]
     out: Option<PathBuf>,
 }
@@ -42,8 +42,7 @@ pub(super) async fn run(args: BundleArgs) {
 /// Bundles assets declared in the executable.
 ///
 /// `bytes` must contain the file at `exe`. Writes the bundle to `out_override`, or to
-/// `assets` beside the executable by default. Keeping bundles beside their executable
-/// prevents builds with different asset IDs from sharing the wrong bundle.
+/// an executable-scoped directory under `assets` beside the executable by default.
 pub(crate) async fn run_bundle(
     exe: &Path,
     bytes: &[u8],
@@ -55,10 +54,7 @@ pub(crate) async fn run_bundle(
         .ok_or("could not derive cargo target directory")?;
     let out_dir = match out_override {
         Some(dir) => dir,
-        None => exe
-            .parent()
-            .ok_or("built executable has no parent directory")?
-            .join(OUT_SUBDIR),
+        None => topcoat_asset::AssetBundle::dir_for_executable(exe)?,
     };
     let cache_dir = topcoat_core::cache::cache_dir_in(&target_dir, CACHE_SCOPE);
 

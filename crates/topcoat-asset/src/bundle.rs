@@ -16,7 +16,7 @@ pub struct AssetBundle {
 }
 
 impl AssetBundle {
-    /// Loads the `assets` directory next to the current executable.
+    /// Loads the bundle scoped to the current executable.
     ///
     /// Deploy this directory alongside the binary from the same build.
     /// Use [`load_dir`](Self::load_dir) for a custom location.
@@ -28,15 +28,7 @@ impl AssetBundle {
     /// manifest through [`load_dir`](Self::load_dir).
     pub fn load() -> io::Result<Self> {
         let exe = std::env::current_exe()?;
-        let dir = exe
-            .parent()
-            .ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "current executable has no parent directory",
-                )
-            })?
-            .join("assets");
+        let dir = Self::dir_for_executable(exe)?;
 
         if !dir.join(MANIFEST_NAME).is_file() {
             return Err(io::Error::new(
@@ -46,6 +38,30 @@ impl AssetBundle {
         }
 
         Self::load_dir(dir)
+    }
+
+    /// Returns the default bundle directory for an executable.
+    ///
+    /// The path is `assets/<executable-name>` beside the executable, which
+    /// keeps bundles for binaries in a shared directory independent.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`io::ErrorKind::NotFound`] if the executable has no parent
+    /// directory or file name.
+    pub fn dir_for_executable(executable: impl AsRef<Path>) -> io::Result<PathBuf> {
+        let executable = executable.as_ref();
+        let parent = executable.parent().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "executable has no parent directory",
+            )
+        })?;
+        let name = executable.file_stem().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::NotFound, "executable has no file name")
+        })?;
+
+        Ok(parent.join("assets").join(name))
     }
 
     /// Load a bundle from a specific directory.

@@ -318,7 +318,7 @@ mod tests {
     use std::{env, path::PathBuf};
 
     use super::*;
-    use crate::{AssetOptions, ENCODED_ASSET_SIZE};
+    use crate::{AssetBundle, AssetOptions, ENCODED_ASSET_SIZE};
 
     /// A fresh directory under the system temp directory.
     fn temp_dir(name: &str) -> PathBuf {
@@ -830,5 +830,30 @@ mod tests {
                 .count(),
             4
         );
+    }
+
+    #[test]
+    fn bundles_for_executables_in_a_shared_directory_are_independent() {
+        let target_profile = temp_dir("shared-target").join("debug");
+        fs::create_dir_all(&target_profile).unwrap();
+
+        let mut app_a = Fixture::new("shared-bundle-app-a");
+        let id_a = app_a.declare("app-a.txt", "app A");
+        let mut app_b = Fixture::new("shared-bundle-app-b");
+        let id_b = app_b.declare("app-b.txt", "app B");
+
+        let exe_a = target_profile.join("app-a");
+        let exe_b = target_profile.join("app-b");
+        let out_a = AssetBundle::dir_for_executable(&exe_a).unwrap();
+        let out_b = AssetBundle::dir_for_executable(&exe_b).unwrap();
+        assert_ne!(out_a, out_b);
+
+        app_a.bundle(&out_a, 1).0.unwrap();
+        app_b.bundle(&out_b, 1).0.unwrap();
+
+        let bundle_a = AssetBundle::load_dir(&out_a).unwrap();
+        let bundle_b = AssetBundle::load_dir(&out_b).unwrap();
+        assert!(bundle_a.catalog().get(id_a).is_some());
+        assert!(bundle_b.catalog().get(id_b).is_some());
     }
 }
