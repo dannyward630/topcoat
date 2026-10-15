@@ -81,10 +81,10 @@ topcoat dev
 cargo topcoat dev
 ```
 
-By default, the bundle is written to a directory named for the executable under `assets`, next to the executable it was scanned from:
+By default, the bundle is written to a directory named for the executable file under `assets`, including its platform extension when present:
 
 ```text
-<cargo-target>/<profile>/assets/<binary-name>
+<cargo-target>/<profile>/assets/<binary-file-name>
 ```
 
 The download/cache directory for remote assets is:

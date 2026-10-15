@@ -856,4 +856,18 @@ mod tests {
         assert!(bundle_a.catalog().get(id_a).is_some());
         assert!(bundle_b.catalog().get(id_b).is_some());
     }
+
+    #[test]
+    fn bundle_paths_preserve_artifact_suffixes() {
+        let target_profile = temp_dir("artifact-suffixes").join("debug");
+        let binary = target_profile.join("libapp");
+        let library = target_profile.join("libapp.so");
+
+        let binary_bundle = AssetBundle::dir_for_executable(&binary).unwrap();
+        let library_bundle = AssetBundle::dir_for_executable(&library).unwrap();
+
+        assert_ne!(binary_bundle, library_bundle);
+        assert!(binary_bundle.ends_with("assets/libapp"));
+        assert!(library_bundle.ends_with("assets/libapp.so"));
+    }
 }

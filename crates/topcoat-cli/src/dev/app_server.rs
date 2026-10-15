@@ -98,12 +98,16 @@ fn copy_bundle_for_shadow(exe: &Path, shadow: &Path) -> io::Result<()> {
             io::ErrorKind::InvalidData,
             format!("asset bundle path is not a directory: {}", source.display()),
         )),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            let destination = AssetBundle::dir_for_executable(shadow)?;
+            remove_directory_if_exists(&destination)
+        }
         Err(error) => Err(error),
     }
 }
 
 fn copy_directory(source: &Path, destination: &Path) -> io::Result<()> {
+    remove_directory_if_exists(destination)?;
     fs::create_dir_all(destination)?;
     for entry in fs::read_dir(source)? {
         let entry = entry?;
@@ -126,6 +130,14 @@ fn copy_directory(source: &Path, destination: &Path) -> io::Result<()> {
     Ok(())
 }
 
+fn remove_directory_if_exists(path: &Path) -> io::Result<()> {
+    match fs::remove_dir_all(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -144,10 +156,12 @@ mod tests {
         fs::write(source.join("manifest.toml"), "bundle manifest").unwrap();
         fs::create_dir_all(source.join("nested")).unwrap();
         fs::write(source.join("nested").join("asset.txt"), "asset data").unwrap();
+        let destination = AssetBundle::dir_for_executable(&shadow).unwrap();
+        fs::create_dir_all(&destination).unwrap();
+        fs::write(destination.join("stale-hash.txt"), "stale asset").unwrap();
 
         copy_bundle_for_shadow(&executable, &shadow).unwrap();
 
-        let destination = AssetBundle::dir_for_executable(&shadow).unwrap();
         assert_eq!(
             fs::read_to_string(destination.join("manifest.toml")).unwrap(),
             "bundle manifest"
@@ -156,6 +170,26 @@ mod tests {
             fs::read_to_string(destination.join("nested").join("asset.txt")).unwrap(),
             "asset data"
         );
+        assert!(!destination.join("stale-hash.txt").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn removes_stale_shadow_bundle_when_source_bundle_is_missing() {
+        let root = std::env::temp_dir().join(format!(
+            "topcoat-app-server-missing-bundle-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        let executable = root.join("app.exe");
+        let shadow = root.join("app.topcoat-dev.exe");
+        let destination = AssetBundle::dir_for_executable(&shadow).unwrap();
+        fs::create_dir_all(&destination).unwrap();
+        fs::write(destination.join("manifest.toml"), "stale bundle").unwrap();
+
+        copy_bundle_for_shadow(&executable, &shadow).unwrap();
+
+        assert!(!destination.exists());
         fs::remove_dir_all(root).unwrap();
     }
 }

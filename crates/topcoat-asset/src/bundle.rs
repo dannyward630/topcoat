@@ -42,8 +42,9 @@ impl AssetBundle {
 
     /// Returns the default bundle directory for an executable.
     ///
-    /// The path is `assets/<executable-name>` beside the executable, which
-    /// keeps bundles for binaries in a shared directory independent.
+    /// The path is `assets/<executable-file-name>` beside the executable,
+    /// including its extension when it has one. This keeps bundles for
+    /// binaries and libraries in a shared directory independent.
     ///
     /// # Errors
     ///
@@ -57,7 +58,7 @@ impl AssetBundle {
                 "executable has no parent directory",
             )
         })?;
-        let name = executable.file_stem().ok_or_else(|| {
+        let name = executable.file_name().ok_or_else(|| {
             io::Error::new(io::ErrorKind::NotFound, "executable has no file name")
         })?;
 
