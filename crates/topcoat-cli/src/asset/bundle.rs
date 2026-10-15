@@ -13,8 +13,8 @@ use crate::common::cargo::{BuildFlags, BuildOpts, Metadata};
 pub(super) struct BundleArgs {
     #[command(flatten)]
     build: BuildFlags,
-    /// Output directory for the bundle (defaults to an executable-scoped
-    /// directory under `assets` next to the built executable)
+    /// Output directory for the bundle (defaults to an artifact-scoped
+    /// directory under `assets` next to the built artifact)
     #[arg(short, long)]
     out: Option<PathBuf>,
 }
@@ -39,10 +39,10 @@ pub(super) async fn run(args: BundleArgs) {
     println!("bundled assets into {}", out_dir.display());
 }
 
-/// Bundles assets declared in the executable.
+/// Bundles assets declared in the built artifact.
 ///
-/// `bytes` must contain the file at `exe`. Writes the bundle to `out_override`, or to
-/// an executable-scoped directory under `assets` beside the executable by default.
+/// `bytes` must contain the artifact at `exe`. Writes the bundle to `out_override`, or to
+/// an artifact-scoped directory under `assets` beside the built output by default.
 pub(crate) async fn run_bundle(
     exe: &Path,
     bytes: &[u8],
@@ -54,7 +54,7 @@ pub(crate) async fn run_bundle(
         .ok_or("could not derive cargo target directory")?;
     let out_dir = match out_override {
         Some(dir) => dir,
-        None => topcoat_asset::AssetBundle::dir_for_executable(exe)?,
+        None => topcoat_asset::AssetBundle::dir_for_artifact(exe)?,
     };
     let cache_dir = topcoat_core::cache::cache_dir_in(&target_dir, CACHE_SCOPE);
 

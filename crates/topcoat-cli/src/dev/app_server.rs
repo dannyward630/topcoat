@@ -88,10 +88,10 @@ fn shadow_copy_for_windows(exe: &Path) -> io::Result<PathBuf> {
 /// `AssetBundle::load` derives its default bundle path from the running executable,
 /// whose name includes the `.topcoat-dev` suffix while `topcoat dev` is running.
 fn copy_bundle_for_shadow(exe: &Path, shadow: &Path) -> io::Result<()> {
-    let source = AssetBundle::dir_for_executable(exe)?;
+    let source = AssetBundle::dir_for_artifact(exe)?;
     match fs::metadata(&source) {
         Ok(metadata) if metadata.is_dir() => {
-            let destination = AssetBundle::dir_for_executable(shadow)?;
+            let destination = AssetBundle::dir_for_artifact(shadow)?;
             copy_directory(&source, &destination)
         }
         Ok(_) => Err(io::Error::new(
@@ -99,7 +99,7 @@ fn copy_bundle_for_shadow(exe: &Path, shadow: &Path) -> io::Result<()> {
             format!("asset bundle path is not a directory: {}", source.display()),
         )),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            let destination = AssetBundle::dir_for_executable(shadow)?;
+            let destination = AssetBundle::dir_for_artifact(shadow)?;
             remove_directory_if_exists(&destination)
         }
         Err(error) => Err(error),
@@ -151,12 +151,12 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         let executable = root.join("app.exe");
         let shadow = root.join("app.topcoat-dev.exe");
-        let source = AssetBundle::dir_for_executable(&executable).unwrap();
+        let source = AssetBundle::dir_for_artifact(&executable).unwrap();
         fs::create_dir_all(&source).unwrap();
         fs::write(source.join("manifest.toml"), "bundle manifest").unwrap();
         fs::create_dir_all(source.join("nested")).unwrap();
         fs::write(source.join("nested").join("asset.txt"), "asset data").unwrap();
-        let destination = AssetBundle::dir_for_executable(&shadow).unwrap();
+        let destination = AssetBundle::dir_for_artifact(&shadow).unwrap();
         fs::create_dir_all(&destination).unwrap();
         fs::write(destination.join("stale-hash.txt"), "stale asset").unwrap();
 
@@ -183,7 +183,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         let executable = root.join("app.exe");
         let shadow = root.join("app.topcoat-dev.exe");
-        let destination = AssetBundle::dir_for_executable(&shadow).unwrap();
+        let destination = AssetBundle::dir_for_artifact(&shadow).unwrap();
         fs::create_dir_all(&destination).unwrap();
         fs::write(destination.join("manifest.toml"), "stale bundle").unwrap();
 

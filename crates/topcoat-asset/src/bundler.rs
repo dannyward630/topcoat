@@ -844,8 +844,8 @@ mod tests {
 
         let exe_a = target_profile.join("app-a");
         let exe_b = target_profile.join("app-b");
-        let out_a = AssetBundle::dir_for_executable(&exe_a).unwrap();
-        let out_b = AssetBundle::dir_for_executable(&exe_b).unwrap();
+        let out_a = AssetBundle::dir_for_artifact(&exe_a).unwrap();
+        let out_b = AssetBundle::dir_for_artifact(&exe_b).unwrap();
         assert_ne!(out_a, out_b);
 
         app_a.bundle(&out_a, 1).0.unwrap();
@@ -863,8 +863,8 @@ mod tests {
         let binary = target_profile.join("libapp");
         let library = target_profile.join("libapp.so");
 
-        let binary_bundle = AssetBundle::dir_for_executable(&binary).unwrap();
-        let library_bundle = AssetBundle::dir_for_executable(&library).unwrap();
+        let binary_bundle = AssetBundle::dir_for_artifact(&binary).unwrap();
+        let library_bundle = AssetBundle::dir_for_artifact(&library).unwrap();
 
         assert_ne!(binary_bundle, library_bundle);
         assert!(binary_bundle.ends_with("assets/libapp"));
