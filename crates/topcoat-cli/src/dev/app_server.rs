@@ -1,10 +1,11 @@
 use std::{
-    io,
+    fs, io,
     path::{Path, PathBuf},
     process::{ExitStatus, Stdio},
 };
 
 use tokio::process::{Child, Command};
+use topcoat_asset::AssetBundle;
 
 use super::port::Address;
 
@@ -71,10 +72,90 @@ fn shadow_copy_for_windows(exe: &Path) -> io::Result<PathBuf> {
     let mut last_error = None;
     for _ in 0..20 {
         match std::fs::copy(exe, &shadow) {
-            Ok(_) => return Ok(shadow),
+            Ok(_) => {
+                copy_bundle_for_shadow(exe, &shadow)?;
+                return Ok(shadow);
+            }
             Err(error) => last_error = Some(error),
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
     Err(last_error.expect("copy attempted at least once"))
+}
+
+/// Copies the executable-scoped bundle beside the Windows shadow executable.
+///
+/// `AssetBundle::load` derives its default bundle path from the running executable,
+/// whose name includes the `.topcoat-dev` suffix while `topcoat dev` is running.
+fn copy_bundle_for_shadow(exe: &Path, shadow: &Path) -> io::Result<()> {
+    let source = AssetBundle::dir_for_executable(exe)?;
+    match fs::metadata(&source) {
+        Ok(metadata) if metadata.is_dir() => {
+            let destination = AssetBundle::dir_for_executable(shadow)?;
+            copy_directory(&source, &destination)
+        }
+        Ok(_) => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("asset bundle path is not a directory: {}", source.display()),
+        )),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
+fn copy_directory(source: &Path, destination: &Path) -> io::Result<()> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let target = destination.join(entry.file_name());
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            copy_directory(&entry.path(), &target)?;
+        } else if file_type.is_file() {
+            fs::copy(entry.path(), target)?;
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "unsupported file in asset bundle: {}",
+                    entry.path().display()
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+
+    #[test]
+    fn copies_executable_scoped_bundle_for_shadow_process() {
+        let root =
+            std::env::temp_dir().join(format!("topcoat-app-server-shadow-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let executable = root.join("app.exe");
+        let shadow = root.join("app.topcoat-dev.exe");
+        let source = AssetBundle::dir_for_executable(&executable).unwrap();
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("manifest.toml"), "bundle manifest").unwrap();
+        fs::create_dir_all(source.join("nested")).unwrap();
+        fs::write(source.join("nested").join("asset.txt"), "asset data").unwrap();
+
+        copy_bundle_for_shadow(&executable, &shadow).unwrap();
+
+        let destination = AssetBundle::dir_for_executable(&shadow).unwrap();
+        assert_eq!(
+            fs::read_to_string(destination.join("manifest.toml")).unwrap(),
+            "bundle manifest"
+        );
+        assert_eq!(
+            fs::read_to_string(destination.join("nested").join("asset.txt")).unwrap(),
+            "asset data"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
 }
